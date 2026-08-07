@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="player_padding_horizontal">16dp</dimen>
+    <dimen name="player_control_icon">48dp</dimen>
+    <dimen name="player_center_icon">56dp</dimen>
+    <dimen name="player_bottom_action_icon">32dp</dimen>
+    <dimen name="player_episode_item_size">56dp</dimen>
+    <dimen name="player_episode_spacing">8dp</dimen>
+    <dimen name="player_season_tab_height">36dp</dimen>
+    <dimen name="player_side_panel_width">280dp</dimen>
+    <dimen name="player_option_item_land_height">48dp</dimen>
+    <dimen name="player_option_item_portrait_height">52dp</dimen>
+</resources>

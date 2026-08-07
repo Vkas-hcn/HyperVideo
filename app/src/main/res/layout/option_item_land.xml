@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="0dp"
+    android:layout_height="@dimen/player_option_item_land_height"
+    android:layout_columnWeight="1"
+    android:layout_gravity="fill_horizontal"
+    android:layout_margin="4dp"
+    android:background="@drawable/bg_option_item_land"
+    android:ellipsize="end"
+    android:gravity="center"
+    android:maxLines="1"
+    android:paddingHorizontal="8dp"
+    android:textColor="@color/speed_option_text_land"
+    android:textSize="14sp" />

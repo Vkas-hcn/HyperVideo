@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="player_accent">#E50914</color>
+    <color name="player_background">#000000</color>
+    <color name="player_surface">#1C1E26</color>
+    <color name="player_sheet">#1C1C1E</color>
+    <color name="player_text_secondary">#99FFFFFF</color>
+    <color name="player_overlay">#99000000</color>
+    <color name="player_option_selected_bg">#33FFFFFF</color>
+    <color name="player_land_selected_bg">#FFFFFFFF</color>
+    <color name="player_land_unselected_bg">#33FFFFFF</color>
+    <color name="player_seekbar_track">#33FFFFFF</color>
+    <color name="app_background">#FF080808</color>
+    <color name="bottom_navigation_background">#E6191A1F</color>
+    <color name="bottom_navigation_text_inactive">#FFA29C9E</color>
+    <color name="brand_red">#FFE21220</color>
+    <color name="home_tab_unselected">#FF1A1C23</color>
+    <color name="permission_text">#FFC4C0C2</color>
+</resources>
