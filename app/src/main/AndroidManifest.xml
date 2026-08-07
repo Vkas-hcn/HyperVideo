@@ -31,6 +31,9 @@
             android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ui.FolderDetailActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

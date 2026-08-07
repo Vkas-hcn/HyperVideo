@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_folder_card"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <FrameLayout
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:background="@drawable/bg_thumb_rounded"
+        android:clipToOutline="true">
+
+        <ImageView
+            android:id="@+id/video_thumbnail"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/local_video_title"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/ic_play" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/video_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:maxLines="2"
+            android:textColor="@color/white"
+            android:textSize="15sp"
+            tools:text="Video_20260620_01" />
+
+        <TextView
+            android:id="@+id/video_duration"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="@color/bottom_navigation_text_inactive"
+            android:textSize="13sp"
+            tools:text="04:20" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/video_more"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:contentDescription="@string/more_actions"
+        android:src="@drawable/ic_more" />
+</LinearLayout>

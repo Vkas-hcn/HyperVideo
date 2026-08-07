@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/folder_detail_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/app_background"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp">
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/back"
+            android:padding="6dp"
+            android:src="@drawable/ic_back" />
+
+        <TextView
+            android:id="@+id/folder_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_bold"
+            android:gravity="center"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="18sp" />
+
+        <ImageView
+            android:id="@+id/layout_toggle"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/layout_toggle"
+            android:padding="6dp"
+            android:src="@drawable/ic_layout1" />
+
+        <ImageView
+            android:id="@+id/btn_filter"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/filter"
+            android:padding="6dp"
+            android:src="@drawable/ic_filter" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/video_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="16dp" />
+
+    <TextView
+        android:id="@+id/empty_text"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:text="@string/local_video_empty"
+        android:textColor="@color/permission_text"
+        android:visibility="gone" />
+</LinearLayout>

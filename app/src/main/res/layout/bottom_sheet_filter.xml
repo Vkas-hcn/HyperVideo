@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_filter_sheet"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="20dp"
+    android:paddingBottom="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/inter_bold"
+        android:gravity="center"
+        android:text="@string/filter"
+        android:textColor="@color/white"
+        android:textSize="20sp" />
+
+    <LinearLayout
+        android:id="@+id/filter_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="vertical" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_apply_filter"
+        style="@style/PermissionActionButton"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="20dp"
+        android:text="@string/apply_filter" />
+
+    <TextView
+        android:id="@+id/btn_cancel_filter"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center"
+        android:text="@string/cancel"
+        android:textColor="@color/bottom_navigation_text_inactive"
+        android:textSize="15sp" />
+</LinearLayout>

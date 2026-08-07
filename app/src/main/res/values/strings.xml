@@ -42,4 +42,16 @@
     <string name="settings_step_two">Tap Permissions</string>
     <string name="settings_step_three">Find and tap Photos and Videos</string>
     <string name="settings_step_four">Allow Access</string>
+    <string name="back">Back</string>
+    <string name="filter">Filter</string>
+    <string name="more_actions">More</string>
+    <string name="apply_filter">Apply Filter</string>
+    <string name="cancel">Cancel</string>
+    <string name="feature_placeholder">Coming soon</string>
+    <string name="sort_date_newest">Date (Newest)</string>
+    <string name="sort_date_oldest">Date (Oldest)</string>
+    <string name="sort_name_az">Name (A-Z)</string>
+    <string name="sort_name_za">Name (Z-A)</string>
+    <string name="sort_size_largest">Size (Largest)</string>
+    <string name="sort_size_smallest">Size (Smallest)</string>
 </resources>

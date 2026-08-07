@@ -54,4 +54,15 @@
     </style>
 
     <style name="Theme.VideoPlayerDemo" parent="Base.Theme.VideoPlayerDemo" />
+
+    <style name="FilterBottomSheetTheme" parent="Theme.Material3.DayNight.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/FilterBottomSheetStyle</item>
+        <item name="android:backgroundDimAmount">0.55</item>
+        <item name="colorPrimary">@color/brand_red</item>
+    </style>
+
+    <style name="FilterBottomSheetStyle" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
 </resources>
