@@ -1,9 +1,141 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/app_background"
-    android:gravity="center"
-    android:text="@string/search"
-    android:textColor="@color/white"
-    android:textSize="20sp" />
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/inter_bold"
+            android:includeFontPadding="false"
+            android:text="@string/cine"
+            android:textColor="@color/white"
+            android:textSize="28sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:fontFamily="@font/inter_bold"
+            android:includeFontPadding="false"
+            android:text="@string/flow"
+            android:textColor="@color/brand_red"
+            android:textSize="28sp" />
+
+        <ImageView
+            android:id="@+id/btn_search_help"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:contentDescription="@string/help"
+            android:src="@drawable/ic_help" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/search_input_container"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="20dp"
+        android:background="@drawable/bg_search_input_normal"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_search" />
+
+        <EditText
+            android:id="@+id/search_input"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:background="@null"
+            android:fontFamily="@font/inter_regular"
+            android:hint="@string/search_or_enter_url"
+            android:imeOptions="actionGo"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textColorHint="@color/bottom_navigation_text_inactive"
+            android:textCursorDrawable="@drawable/bg_rename_cursor"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/platform_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="28dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/platform_tiktok"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="true"
+            android:contentDescription="@string/platform_tiktok"
+            android:paddingHorizontal="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_tiktok" />
+
+        <ImageView
+            android:id="@+id/platform_instagram"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="true"
+            android:contentDescription="@string/platform_instagram"
+            android:paddingHorizontal="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_instagram" />
+
+        <ImageView
+            android:id="@+id/platform_youtube"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="true"
+            android:contentDescription="@string/platform_youtube"
+            android:paddingHorizontal="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_youtobe" />
+
+        <ImageView
+            android:id="@+id/platform_facebook"
+            android:layout_width="0dp"
+            android:layout_height="64dp"
+            android:layout_weight="1"
+            android:adjustViewBounds="true"
+            android:contentDescription="@string/platform_facebook"
+            android:paddingHorizontal="6dp"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_facebook" />
+    </LinearLayout>
+
+    <!-- Reserved host for future download results / progress UI. -->
+    <FrameLayout
+        android:id="@+id/search_download_slot"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="20dp"
+        android:layout_weight="1"
+        tools:ignore="UselessLeaf" />
+</LinearLayout>

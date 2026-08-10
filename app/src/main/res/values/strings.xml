@@ -77,4 +77,22 @@
     <string name="guide_desc_2">Preview the video in built-in player and make sure it\'s what you want.</string>
     <string name="guide_title_3">Download Save</string>
     <string name="guide_desc_3">Choose quality and tap download. Your video will be saved to your device.</string>
+    <string name="help">Help</string>
+    <string name="search_or_enter_url">Search or enter URL</string>
+    <string name="platform_tiktok">TikTok</string>
+    <string name="platform_instagram">Instagram</string>
+    <string name="platform_youtube">YouTube</string>
+    <string name="platform_facebook">Facebook</string>
+    <string name="search_link_invalid">Please enter a valid video URL</string>
+    <string name="search_link_unsupported">Only TikTok, Instagram, YouTube and Facebook links are supported</string>
+    <string name="search_download_started">Download started</string>
+    <string name="search_download_queued">Link saved. Download module will process it</string>
+    <string name="browser_invalid_url">Please enter a valid web address</string>
+    <string name="browser_refresh">Refresh</string>
+    <string name="browser_no_results_title">No results found</string>
+    <string name="browser_no_results_message">The video does not exist. Please search again.</string>
+    <string name="browser_choose_video">Choose a video to download</string>
+    <string name="browser_no_video_found">No downloadable video found yet</string>
+    <string name="browser_download_description">Saving to the Shorts folder</string>
+    <string name="browser_download_failed">Unable to start the download</string>
 </resources>

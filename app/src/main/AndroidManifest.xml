@@ -6,6 +6,9 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
@@ -41,6 +44,9 @@
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.FolderDetailActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.VideoBrowserActivity"
             android:exported="false" />
         <service
             android:name=".player.BackgroundPlaybackService"
