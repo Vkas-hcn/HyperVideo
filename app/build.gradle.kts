@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.material)
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
 
     implementation("androidx.media3:media3-exoplayer:1.10.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.10.1")

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_app_dialog"
+    android:orientation="vertical"
+    android:paddingHorizontal="20dp"
+    android:paddingTop="24dp"
+    android:paddingBottom="16dp">
+
+    <TextView
+        android:id="@+id/dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/inter_bold"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="20sp"
+        tools:text="Rename" />
+
+    <TextView
+        android:id="@+id/dialog_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/inter_regular"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="15sp"
+        android:visibility="gone"
+        tools:text="Confirm video deletion?"
+        tools:visibility="visible" />
+
+    <LinearLayout
+        android:id="@+id/dialog_input_section"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/dialog_input_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/inter_regular"
+            android:text="@string/enter_new_name"
+            android:textColor="@color/bottom_navigation_text_inactive"
+            android:textSize="13sp" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_rename_input">
+
+            <EditText
+                android:id="@+id/dialog_input"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@null"
+                android:fontFamily="@font/inter_regular"
+                android:imeOptions="actionDone"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingStart="14dp"
+                android:paddingEnd="44dp"
+                android:textColor="@color/white"
+                android:textCursorDrawable="@drawable/bg_rename_cursor"
+                android:textSize="15sp"
+                tools:text="Video_20260620_01" />
+
+            <ImageView
+                android:id="@+id/dialog_input_clear"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="12dp"
+                android:contentDescription="@string/clear_input"
+                android:src="@drawable/ic_clos" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/dialog_primary"
+        style="@style/PermissionActionButton"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="24dp"
+        tools:text="Confirm" />
+
+    <TextView
+        android:id="@+id/dialog_cancel"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:gravity="center"
+        android:text="@string/cancel"
+        android:textColor="@color/bottom_navigation_text_inactive"
+        android:textSize="15sp" />
+</LinearLayout>

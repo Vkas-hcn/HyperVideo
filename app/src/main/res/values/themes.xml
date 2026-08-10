@@ -65,4 +65,12 @@
         <item name="backgroundTint">@android:color/transparent</item>
         <item name="android:background">@android:color/transparent</item>
     </style>
+
+    <style name="AppActionDialogTheme" parent="Theme.Material3.DayNight.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.55</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="colorPrimary">@color/brand_red</item>
+    </style>
 </resources>

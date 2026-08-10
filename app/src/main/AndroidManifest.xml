@@ -7,6 +7,10 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"
@@ -18,14 +22,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VideoPlayerDemo">
         <activity
-            android:name=".MainActivity"
-            android:exported="true">
+            android:name=".ui.GuideActivity"
+            android:exported="true"
+            android:theme="@style/Theme.VideoPlayerDemo">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="false" />
         <activity
             android:name=".PlayerActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize"
@@ -34,6 +42,10 @@
         <activity
             android:name=".ui.FolderDetailActivity"
             android:exported="false" />
+        <service
+            android:name=".player.BackgroundPlaybackService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 
 </manifest>

@@ -12,6 +12,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.vi.pl.videoplayerdemo.player.BackgroundPlaybackService
 import com.vi.pl.videoplayerdemo.player.VideoEpisode
 import com.vi.pl.videoplayerdemo.player.VideoPlayerManager
 import com.vi.pl.videoplayerdemo.player.VideoSeason
@@ -21,12 +22,14 @@ import com.vi.pl.videoplayerdemo.ui.CustomPlayerView
 class PlayerActivity : AppCompatActivity() {
     private val playerManager: VideoPlayerManager by viewModels()
     private lateinit var customPlayerView: CustomPlayerView
+    private var playInBackground = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         playerManager.restoreFromBundle(savedInstanceState)
         setContentView(R.layout.activity_player)
+        playInBackground = intent.getBooleanExtra(EXTRA_PLAY_IN_BACKGROUND, false)
 
         customPlayerView = findViewById(R.id.custom_player_view)
         customPlayerView.onFullscreenChanged = { fullscreen ->
@@ -69,6 +72,13 @@ class PlayerActivity : AppCompatActivity() {
         if (savedInstanceState == null || !playerManager.hasPlaylist()) {
             loadMedia(seasons)
         }
+        if (intent.getBooleanExtra(EXTRA_START_MUTED, false)) {
+            playerManager.player.volume = 0f
+        }
+        if (playInBackground) {
+            val title = playerManager.currentEpisode()?.title.orEmpty()
+            BackgroundPlaybackService.start(this, title)
+        }
     }
 
     override fun onStop() {
@@ -77,6 +87,9 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (isFinishing && playInBackground) {
+            BackgroundPlaybackService.stop(this)
+        }
         customPlayerView.unbind()
         super.onDestroy()
     }
@@ -137,6 +150,8 @@ class PlayerActivity : AppCompatActivity() {
         const val EXTRA_START_INDEX = "extra_start_index"
         const val EXTRA_CATEGORY_NAME = "extra_category_name"
         const val EXTRA_MEDIA_URI = "media_uri"
+        const val EXTRA_START_MUTED = "extra_start_muted"
+        const val EXTRA_PLAY_IN_BACKGROUND = "extra_play_in_background"
 
         fun createIntent(
             context: Context,
@@ -144,12 +159,16 @@ class PlayerActivity : AppCompatActivity() {
             videoUris: ArrayList<String>,
             videoTitles: ArrayList<String>,
             startIndex: Int,
+            startMuted: Boolean = false,
+            playInBackground: Boolean = false,
         ): Intent =
             Intent(context, PlayerActivity::class.java).apply {
                 putStringArrayListExtra(EXTRA_VIDEO_URIS, videoUris)
                 putStringArrayListExtra(EXTRA_VIDEO_TITLES, videoTitles)
                 putExtra(EXTRA_START_INDEX, startIndex)
                 putExtra(EXTRA_CATEGORY_NAME, categoryName)
+                putExtra(EXTRA_START_MUTED, startMuted)
+                putExtra(EXTRA_PLAY_IN_BACKGROUND, playInBackground)
             }
     }
 }

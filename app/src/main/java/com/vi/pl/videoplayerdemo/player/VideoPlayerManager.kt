@@ -46,6 +46,7 @@ class VideoPlayerManager(application: Application) : AndroidViewModel(applicatio
         val dataSourceFactory = DefaultDataSource.Factory(application)
         player = ExoPlayer.Builder(application)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
             .apply {
                 setAudioAttributes(AudioAttributes.DEFAULT, true)

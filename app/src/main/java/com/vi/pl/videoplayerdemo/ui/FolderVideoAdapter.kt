@@ -17,6 +17,7 @@ import com.vi.pl.videoplayerdemo.local.sortedWith
 
 class FolderVideoAdapter(
     private val onVideoClick: (LocalVideoItem, List<LocalVideoItem>) -> Unit,
+    private val onMoreClick: (LocalVideoItem, List<LocalVideoItem>) -> Unit,
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     sealed class Row {
         data class Header(val label: String) : Row()
@@ -100,9 +101,10 @@ class FolderVideoAdapter(
             is Row.Header -> (holder as HeaderHolder).bind(row.label)
             is Row.Video -> {
                 val click = { onVideoClick(row.item, videos) }
+                val more = { onMoreClick(row.item, videos) }
                 when (holder) {
-                    is ListHolder -> holder.bind(row.item, click)
-                    is GridHolder -> holder.bind(row.item, click)
+                    is ListHolder -> holder.bind(row.item, click, more)
+                    is GridHolder -> holder.bind(row.item, click, more)
                 }
             }
         }
@@ -121,8 +123,9 @@ class FolderVideoAdapter(
         private val thumb: ImageView = itemView.findViewById(R.id.video_thumbnail)
         private val title: TextView = itemView.findViewById(R.id.video_title)
         private val duration: TextView = itemView.findViewById(R.id.video_duration)
+        private val more: ImageView = itemView.findViewById(R.id.video_more)
 
-        fun bind(item: LocalVideoItem, onClick: () -> Unit) {
+        fun bind(item: LocalVideoItem, onClick: () -> Unit, onMore: () -> Unit) {
             (thumb.parent as? View)?.apply {
                 outlineProvider = ViewOutlineProvider.BACKGROUND
                 clipToOutline = true
@@ -131,6 +134,7 @@ class FolderVideoAdapter(
             duration.text = VideoFormat.duration(item.durationMs)
             VideoThumbnailLoader.load(itemView.context, item, thumb)
             itemView.setOnClickListener { onClick() }
+            more.setOnClickListener { onMore() }
         }
     }
 
@@ -138,8 +142,9 @@ class FolderVideoAdapter(
         private val thumb: ImageView = itemView.findViewById(R.id.video_thumbnail)
         private val title: TextView = itemView.findViewById(R.id.video_title)
         private val duration: TextView = itemView.findViewById(R.id.video_duration)
+        private val more: ImageView = itemView.findViewById(R.id.video_more)
 
-        fun bind(item: LocalVideoItem, onClick: () -> Unit) {
+        fun bind(item: LocalVideoItem, onClick: () -> Unit, onMore: () -> Unit) {
             (thumb.parent as? View)?.apply {
                 outlineProvider = ViewOutlineProvider.BACKGROUND
                 clipToOutline = true
@@ -148,6 +153,7 @@ class FolderVideoAdapter(
             duration.text = VideoFormat.duration(item.durationMs)
             VideoThumbnailLoader.load(itemView.context, item, thumb)
             itemView.setOnClickListener { onClick() }
+            more.setOnClickListener { onMore() }
         }
     }
 

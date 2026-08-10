@@ -47,6 +47,20 @@
     <string name="more_actions">More</string>
     <string name="apply_filter">Apply Filter</string>
     <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="play_in_background">Play in Background</string>
+    <string name="play_muted">Play Muted</string>
+    <string name="favorite">Favorite</string>
+    <string name="rename">Rename</string>
+    <string name="share">Share</string>
+    <string name="delete">Delete</string>
+    <string name="enter_new_name">Enter new name</string>
+    <string name="clear_input">Clear</string>
+    <string name="confirm_video_deletion">Confirm video deletion?</string>
+    <string name="share_video">Share video</string>
+    <string name="rename_failed">Unable to rename this video</string>
+    <string name="delete_failed">Unable to delete this video</string>
+    <string name="background_playback">Background playback</string>
     <string name="feature_placeholder">Coming soon</string>
     <string name="sort_date_newest">Date (Newest)</string>
     <string name="sort_date_oldest">Date (Oldest)</string>
@@ -54,4 +68,13 @@
     <string name="sort_name_za">Name (Z-A)</string>
     <string name="sort_size_largest">Size (Largest)</string>
     <string name="sort_size_smallest">Size (Smallest)</string>
+    <string name="skip">Skip</string>
+    <string name="next">Next</string>
+    <string name="got_it">Got it</string>
+    <string name="guide_title_1">Search Anything</string>
+    <string name="guide_desc_1">Search by keywords or paste a link from your favorite platforms</string>
+    <string name="guide_title_2">Play The Video</string>
+    <string name="guide_desc_2">Preview the video in built-in player and make sure it\'s what you want.</string>
+    <string name="guide_title_3">Download Save</string>
+    <string name="guide_desc_3">Choose quality and tap download. Your video will be saved to your device.</string>
 </resources>

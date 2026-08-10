@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:paddingHorizontal="28dp">
+
+    <ImageView
+        android:id="@+id/guide_image"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:adjustViewBounds="true"
+        android:contentDescription="@null"
+        android:scaleType="fitCenter"
+        tools:src="@drawable/ic_guide1" />
+
+    <TextView
+        android:id="@+id/guide_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:fontFamily="@font/inter_bold"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="24sp"
+        tools:text="Search Anything" />
+
+    <TextView
+        android:id="@+id/guide_desc"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="8dp"
+        android:fontFamily="@font/inter_regular"
+        android:gravity="center"
+        android:lineSpacingExtra="2dp"
+        android:textColor="@color/bottom_navigation_text_inactive"
+        android:textSize="14sp"
+        tools:text="Search by keywords or paste a link from your favorite platforms" />
+</LinearLayout>
