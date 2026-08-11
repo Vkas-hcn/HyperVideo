@@ -9,8 +9,8 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
+import com.vi.pl.videoplayerdemo.local.VideoDurationLoader
 import com.vi.pl.videoplayerdemo.local.VideoFolder
-import com.vi.pl.videoplayerdemo.local.VideoFormat
 import com.vi.pl.videoplayerdemo.local.VideoThumbnailLoader
 
 class FolderListAdapter(
@@ -94,7 +94,7 @@ class FolderListAdapter(
             root.clipToOutline = true
             val image = root.findViewById<ImageView>(R.id.thumb_image)
             val duration = root.findViewById<TextView>(R.id.thumb_duration)
-            duration.text = VideoFormat.duration(item.durationMs)
+            VideoDurationLoader.bind(root.context, item, duration)
             VideoThumbnailLoader.load(root.context, item, image)
         }
     }

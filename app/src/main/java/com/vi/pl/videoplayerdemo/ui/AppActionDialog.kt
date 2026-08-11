@@ -26,10 +26,12 @@ class AppActionDialog private constructor(
         val message: CharSequence? = null,
         val inputInitial: CharSequence? = null,
         val inputLabel: CharSequence? = null,
+        val cancelText: CharSequence? = null,
         val onPrimary: (input: String?) -> Unit,
     )
 
     private var inputView: EditText? = null
+    private var showInput = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,11 +49,14 @@ class AppActionDialog private constructor(
         val primary = findViewById<MaterialButton>(R.id.dialog_primary)
         val cancel = findViewById<TextView>(R.id.dialog_cancel)
 
-        val showInput = config.inputInitial != null
+        showInput = config.inputInitial != null
         messageView.isVisible = !showInput && config.message != null
         inputSection.isVisible = showInput
         if (!showInput) {
             messageView.text = config.message
+            // Avoid hidden EditText stealing focus and opening the keyboard.
+            inputView?.isFocusable = false
+            inputView?.isFocusableInTouchMode = false
         } else {
             findViewById<TextView>(R.id.dialog_input_label).text =
                 config.inputLabel ?: context.getString(R.string.enter_new_name)
@@ -67,18 +72,21 @@ class AppActionDialog private constructor(
             config.onPrimary(value)
             dismiss()
         }
+        cancel.text = config.cancelText ?: context.getString(R.string.cancel)
         cancel.setOnClickListener { dismiss() }
     }
 
     override fun onStart() {
         super.onStart()
-        if (inputView != null) {
-            inputView?.requestFocus()
-            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-            inputView?.post {
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(inputView, InputMethodManager.SHOW_IMPLICIT)
-            }
+        if (!showInput) {
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+            return
+        }
+        inputView?.requestFocus()
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        inputView?.post {
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(inputView, InputMethodManager.SHOW_IMPLICIT)
         }
     }
 
@@ -109,6 +117,21 @@ class AppActionDialog private constructor(
                     primaryText = context.getString(R.string.delete),
                     message = context.getString(R.string.confirm_video_deletion),
                     onPrimary = { onConfirm() },
+                ),
+            )
+
+        fun linkDetected(
+            context: Context,
+            onOpen: () -> Unit,
+        ): AppActionDialog =
+            AppActionDialog(
+                context,
+                Config(
+                    title = context.getString(R.string.link_detected_title),
+                    primaryText = context.getString(R.string.open_now),
+                    message = context.getString(R.string.link_detected_message),
+                    cancelText = context.getString(R.string.later),
+                    onPrimary = { onOpen() },
                 ),
             )
     }

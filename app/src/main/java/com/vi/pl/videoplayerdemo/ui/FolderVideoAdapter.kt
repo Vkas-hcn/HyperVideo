@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
+import com.vi.pl.videoplayerdemo.local.VideoDurationLoader
 import com.vi.pl.videoplayerdemo.local.VideoFormat
 import com.vi.pl.videoplayerdemo.local.VideoSort
 import com.vi.pl.videoplayerdemo.local.VideoThumbnailLoader
@@ -131,7 +132,7 @@ class FolderVideoAdapter(
                 clipToOutline = true
             }
             title.text = item.title
-            duration.text = VideoFormat.duration(item.durationMs)
+            VideoDurationLoader.bind(itemView.context, item, duration)
             VideoThumbnailLoader.load(itemView.context, item, thumb)
             itemView.setOnClickListener { onClick() }
             more.visibility = if (onMore == null) View.GONE else View.VISIBLE
@@ -151,7 +152,7 @@ class FolderVideoAdapter(
                 clipToOutline = true
             }
             title.text = item.title
-            duration.text = VideoFormat.duration(item.durationMs)
+            VideoDurationLoader.bind(itemView.context, item, duration)
             VideoThumbnailLoader.load(itemView.context, item, thumb)
             itemView.setOnClickListener { onClick() }
             more.visibility = if (onMore == null) View.GONE else View.VISIBLE

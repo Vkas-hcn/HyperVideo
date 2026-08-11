@@ -1,5 +1,6 @@
 package com.vi.pl.videoplayerdemo.ui
 
+import android.content.ClipboardManager
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -23,6 +24,8 @@ import com.vi.pl.videoplayerdemo.search.normalizeUrl
 
 class SearchFragment : Fragment(R.layout.fragment_search) {
     private var lastOpenedUrl: String? = null
+    private var lastClipboardPromptUrl: String? = null
+    private var clipboardDialog: AppActionDialog? = null
     private val guidePrefs by lazy {
         requireContext().getSharedPreferences(PREFS_NAME, 0)
     }
@@ -41,7 +44,6 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
         input.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                // Paste / bulk insert: start download when a platform link appears.
                 if (count > 8) tryDownload(s?.toString().orEmpty(), fromPaste = true)
             }
             override fun afterTextChanged(s: Editable?) = Unit
@@ -71,6 +73,27 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
         }
 
         setupGuide(view)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        view?.post { maybePromptClipboardLink() }
+    }
+
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (hidden) {
+            clipboardDialog?.dismiss()
+            clipboardDialog = null
+        } else {
+            view?.post { maybePromptClipboardLink() }
+        }
+    }
+
+    override fun onPause() {
+        clipboardDialog?.dismiss()
+        clipboardDialog = null
+        super.onPause()
     }
 
     private fun setupGuide(view: View) {
@@ -120,6 +143,46 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
     private fun closeGuide(overlay: View) {
         guidePrefs.edit().putBoolean(KEY_GUIDE_SHOWN, true).apply()
         overlay.visibility = View.GONE
+        view?.post { maybePromptClipboardLink() }
+    }
+
+    private fun maybePromptClipboardLink() {
+        if (!isResumed || !isAdded || isHidden) return
+        val overlay = view?.findViewById<View>(R.id.search_guide_overlay)
+        if (overlay?.visibility == View.VISIBLE) return
+        if (clipboardDialog?.isShowing == true) return
+
+        val url = findPlatformUrlInClipboard() ?: return
+        if (url == lastClipboardPromptUrl) return
+        lastClipboardPromptUrl = url
+
+        clipboardDialog = AppActionDialog.linkDetected(requireContext()) {
+            lastOpenedUrl = url
+            startActivity(VideoBrowserActivity.intent(requireContext(), url))
+        }.also { it.show() }
+    }
+
+    private fun findPlatformUrlInClipboard(): String? {
+        val clipboard = ContextCompat.getSystemService(requireContext(), ClipboardManager::class.java)
+            ?: return null
+        val text = clipboard.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(requireContext())
+            ?.toString()
+            ?.trim()
+            .orEmpty()
+        if (text.isEmpty()) return null
+        return extractPlatformUrl(text)
+    }
+
+    private fun extractPlatformUrl(text: String): String? {
+        normalizeUrl(text)?.toString()?.takeIf { VideoPlatform.fromUrl(it) != null }?.let { return it }
+        URL_IN_TEXT.findAll(text).forEach { match ->
+            val candidate = match.value.trimEnd('.', ',', ')', ']', '"', '\'')
+            normalizeUrl(candidate)?.toString()?.takeIf { VideoPlatform.fromUrl(it) != null }?.let { return it }
+        }
+        return null
     }
 
     private fun setupDots(container: LinearLayout) {
@@ -219,6 +282,7 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
     private companion object {
         const val PREFS_NAME = "guide_prefs"
         const val KEY_GUIDE_SHOWN = "guide_shown"
+        private val URL_IN_TEXT = Regex("""(?i)(?:https?://|www\.)[^\s<>"']+""")
 
         val PAGES = listOf(
             Page(R.drawable.ic_guide1, R.string.guide_title_1, R.string.guide_desc_1),

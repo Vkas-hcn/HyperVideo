@@ -96,4 +96,8 @@
     <string name="browser_download_description">Saving to the Shorts folder</string>
     <string name="browser_download_failed">Unable to start the download</string>
     <string name="local_shorts_empty">No videos downloaded to Shorts yet.</string>
+    <string name="link_detected_title">Link Detected</string>
+    <string name="link_detected_message">A video link was found in your clipboard. Would you like to open it now?</string>
+    <string name="open_now">Open Now</string>
+    <string name="later">Later</string>
 </resources>
