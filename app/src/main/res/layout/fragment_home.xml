@@ -72,6 +72,15 @@
                 android:layout_height="28dp"
                 android:contentDescription="@string/layout_toggle"
                 android:src="@drawable/ic_layout1" />
+
+            <ImageView
+                android:id="@+id/btn_filter"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="@string/filter"
+                android:padding="6dp"
+                android:src="@drawable/ic_filter"
+                android:visibility="gone" />
         </LinearLayout>
 
         <FrameLayout

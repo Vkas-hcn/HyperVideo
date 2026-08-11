@@ -14,25 +14,33 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
+import com.vi.pl.videoplayerdemo.local.LocalVideoItem
+import com.vi.pl.videoplayerdemo.local.VideoSort
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private lateinit var folderAdapter: FolderListAdapter
-    private lateinit var videoAdapter: LocalVideoListAdapter
+    private lateinit var videoAdapter: FolderVideoAdapter
     private lateinit var videoList: RecyclerView
     private lateinit var permissionContent: View
     private lateinit var settingsSteps: LinearLayout
     private lateinit var permissionAction: MaterialButton
     private lateinit var emptyText: TextView
     private lateinit var layoutToggle: ImageView
+    private lateinit var filterButton: ImageView
     private lateinit var preferences: SharedPreferences
     private var selectedTab = R.id.tab_folders
     private var folderGridMode = false
+    private var videoGridMode = false
+    private var shortsGridMode = false
+    private var videoSort = VideoSort.DATE_NEWEST
+    private var shortsSort = VideoSort.DATE_NEWEST
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -56,6 +64,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         permissionAction = view.findViewById(R.id.permission_action)
         emptyText = view.findViewById(R.id.empty_text)
         layoutToggle = view.findViewById(R.id.layout_toggle)
+        filterButton = view.findViewById(R.id.btn_filter)
+        videoGridMode = preferences.getBoolean(PREF_VIDEOS_GRID_MODE, false)
+        shortsGridMode = preferences.getBoolean(PREF_SHORTS_GRID_MODE, false)
         bindPermissionSteps(view)
 
         folderAdapter = FolderListAdapter { folder ->
@@ -63,18 +74,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 FolderDetailActivity.createIntent(requireContext(), folder.path, folder.name),
             )
         }
-        videoAdapter = LocalVideoListAdapter { category, index ->
-            val playlist = category.videos
-            startActivity(
-                PlayerActivity.createIntent(
-                    requireContext(),
-                    category.name,
-                    ArrayList(playlist.map { it.uri.toString() }),
-                    ArrayList(playlist.map { it.title }),
-                    index,
-                ),
-            )
-        }
+        videoAdapter = FolderVideoAdapter(::openVideo)
         videoList.layoutManager = LinearLayoutManager(requireContext())
         videoList.adapter = folderAdapter
 
@@ -84,13 +84,16 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         selectTab(view.findViewById(R.id.tab_folders))
 
         layoutToggle.setOnClickListener {
-            if (selectedTab != R.id.tab_folders || !hasVideoPermission()) return@setOnClickListener
-            folderGridMode = !folderGridMode
-            layoutToggle.setImageResource(
-                if (folderGridMode) R.drawable.ic_layout2 else R.drawable.ic_layout1,
-            )
-            folderAdapter.setGridMode(folderGridMode)
+            if (!hasVideoPermission()) return@setOnClickListener
+            if (selectedTab == R.id.tab_folders) {
+                folderGridMode = !folderGridMode
+                folderAdapter.setGridMode(folderGridMode)
+            } else {
+                setVideoGridMode(!videoGridMode())
+            }
+            updateLayoutToggle()
         }
+        filterButton.setOnClickListener { showFilter() }
 
         permissionAction.setOnClickListener {
             when {
@@ -134,13 +137,15 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         videoList.visibility = View.GONE
         emptyText.visibility = View.GONE
         layoutToggle.visibility = View.GONE
+        filterButton.visibility = View.GONE
         settingsSteps.visibility = if (showSettings) View.VISIBLE else View.GONE
         permissionAction.setText(if (showSettings) R.string.go_to_settings else R.string.grant_access)
     }
 
     private fun showContent() {
         permissionContent.visibility = View.GONE
-        layoutToggle.visibility = if (selectedTab == R.id.tab_folders) View.VISIBLE else View.GONE
+        layoutToggle.visibility = View.VISIBLE
+        filterButton.visibility = if (selectedTab == R.id.tab_folders) View.GONE else View.VISIBLE
         when (selectedTab) {
             R.id.tab_folders -> showFolders()
             R.id.tab_videos -> showVideos(shortsOnly = false)
@@ -150,27 +155,85 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private fun showFolders() {
         val folders = LocalVideoLoader.loadFolders(requireContext())
+        videoList.layoutManager = LinearLayoutManager(requireContext())
         videoList.adapter = folderAdapter
         folderAdapter.setGridMode(folderGridMode)
         folderAdapter.submit(folders)
-        layoutToggle.setImageResource(
-            if (folderGridMode) R.drawable.ic_layout2 else R.drawable.ic_layout1,
-        )
+        updateLayoutToggle()
         videoList.visibility = if (folders.isEmpty()) View.GONE else View.VISIBLE
         emptyText.visibility = if (folders.isEmpty()) View.VISIBLE else View.GONE
         emptyText.setText(R.string.local_video_empty)
     }
 
     private fun showVideos(shortsOnly: Boolean) {
-        val categories = LocalVideoLoader.loadCategories(requireContext())
+        val videos = LocalVideoLoader.loadCategories(requireContext())
             .filter { category ->
                 category.name.equals("Shorts", ignoreCase = true) == shortsOnly
             }
+            .flatMap { it.videos }
+        applyVideoLayoutManager()
         videoList.adapter = videoAdapter
-        videoAdapter.submitCategories(categories)
-        videoList.visibility = if (categories.isEmpty()) View.GONE else View.VISIBLE
-        emptyText.visibility = if (categories.isEmpty()) View.VISIBLE else View.GONE
+        videoAdapter.submit(videos, activeSort(), videoGridMode())
+        updateLayoutToggle()
+        videoList.visibility = if (videos.isEmpty()) View.GONE else View.VISIBLE
+        emptyText.visibility = if (videos.isEmpty()) View.VISIBLE else View.GONE
         emptyText.setText(if (shortsOnly) R.string.local_shorts_empty else R.string.local_video_empty)
+    }
+
+    private fun openVideo(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
+        startActivity(
+            PlayerActivity.createIntent(
+                requireContext(),
+                getString(if (selectedTab == R.id.tab_shorts) R.string.shorts else R.string.videos),
+                ArrayList(playlist.map { it.uri.toString() }),
+                ArrayList(playlist.map { it.title }),
+                playlist.indexOfFirst { it.id == item.id }.coerceAtLeast(0),
+            ),
+        )
+    }
+
+    private fun showFilter() {
+        if (selectedTab == R.id.tab_folders) return
+        FilterBottomSheet(requireContext(), activeSort()) { selected ->
+            if (selectedTab == R.id.tab_shorts) shortsSort = selected else videoSort = selected
+            videoAdapter.setSort(selected)
+        }.show()
+    }
+
+    private fun applyVideoLayoutManager() {
+        videoList.layoutManager = if (videoGridMode()) {
+            GridLayoutManager(requireContext(), 2).also { it.spanSizeLookup = videoAdapter.spanSizeLookup }
+        } else {
+            LinearLayoutManager(requireContext())
+        }
+    }
+
+    private fun setVideoGridMode(enabled: Boolean) {
+        if (selectedTab == R.id.tab_shorts) {
+            shortsGridMode = enabled
+            preferences.edit().putBoolean(PREF_SHORTS_GRID_MODE, enabled).apply()
+        } else {
+            videoGridMode = enabled
+            preferences.edit().putBoolean(PREF_VIDEOS_GRID_MODE, enabled).apply()
+        }
+        applyVideoLayoutManager()
+        videoAdapter.setGridMode(enabled)
+    }
+
+    private fun videoGridMode() =
+        if (selectedTab == R.id.tab_shorts) shortsGridMode else videoGridMode
+
+    private fun activeSort() =
+        if (selectedTab == R.id.tab_shorts) shortsSort else videoSort
+
+    private fun updateLayoutToggle() {
+        layoutToggle.setImageResource(
+            if (if (selectedTab == R.id.tab_folders) folderGridMode else videoGridMode()) {
+                R.drawable.ic_layout2
+            } else {
+                R.drawable.ic_layout1
+            },
+        )
     }
 
     private fun selectTab(selected: TextView) {
@@ -205,5 +268,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private companion object {
         const val PREFS_NAME = "home_permission"
         const val PREF_DENIAL_COUNT = "permission_denial_count"
+        const val PREF_VIDEOS_GRID_MODE = "videos_grid_mode"
+        const val PREF_SHORTS_GRID_MODE = "shorts_grid_mode"
     }
 }
