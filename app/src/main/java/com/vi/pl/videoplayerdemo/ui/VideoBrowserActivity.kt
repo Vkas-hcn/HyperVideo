@@ -44,6 +44,7 @@ class VideoBrowserActivity : AppCompatActivity() {
     private lateinit var loading: View
     private lateinit var errorState: View
     private val recentVideoUrls = ArrayDeque<String>(3)
+    private val recentStreamUrls = ArrayDeque<String>(3)
     private val handler = Handler(Looper.getMainLooper())
     private var pageLoaded = false
     private var pageFailed = false
@@ -134,7 +135,12 @@ class VideoBrowserActivity : AppCompatActivity() {
         }
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-            request.url.toString().takeIf(VideoUrlDetector::isDirectVideoUrl)?.let(::rememberVideoUrl)
+            request.url.toString().let { url ->
+                when {
+                    VideoUrlDetector.isDirectVideoUrl(url) -> rememberVideoUrl(url)
+                    VideoUrlDetector.isManifestUrl(url) -> rememberStreamUrl(url)
+                }
+            }
             return super.shouldInterceptRequest(view, request)
         }
     }
@@ -146,6 +152,7 @@ class VideoBrowserActivity : AppCompatActivity() {
             return
         }
         recentVideoUrls.clear()
+        recentStreamUrls.clear()
         setAddressText(url)
         webView.loadUrl(url)
     }
@@ -168,8 +175,10 @@ class VideoBrowserActivity : AppCompatActivity() {
         webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
             val currentUrl = encodedUrl.takeUnless { it == "null" }?.trim('"')
                 ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
-            if (currentUrl != null && VideoUrlDetector.isDownloadableHttpUrl(currentUrl)) {
+            if (currentUrl != null && VideoUrlDetector.isDirectVideoUrl(currentUrl)) {
                 enqueueDownload(currentUrl)
+            } else if (currentUrl != null && VideoUrlDetector.isManifestUrl(currentUrl)) {
+                showStreamUnsupported()
             } else {
                 showVideoSelection()
             }
@@ -179,6 +188,10 @@ class VideoBrowserActivity : AppCompatActivity() {
     private fun showVideoSelection() {
         val urls = recentVideoUrls.toList().asReversed()
         if (urls.isEmpty()) {
+            if (recentStreamUrls.isNotEmpty()) {
+                showStreamUnsupported()
+                return
+            }
             Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
             return
         }
@@ -217,6 +230,11 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     private fun enqueueDownload(url: String) {
+        if (!VideoUrlDetector.isDirectVideoUrl(url)) {
+            if (VideoUrlDetector.isManifestUrl(url)) showStreamUnsupported()
+            else Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+            return
+        }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -241,6 +259,16 @@ class VideoBrowserActivity : AppCompatActivity() {
         runCatching { getSystemService(DownloadManager::class.java).enqueue(request) }
             .onSuccess { Toast.makeText(this, R.string.search_download_started, Toast.LENGTH_SHORT).show() }
             .onFailure { Toast.makeText(this, R.string.browser_download_failed, Toast.LENGTH_LONG).show() }
+    }
+
+    private fun rememberStreamUrl(url: String) = runOnUiThread {
+        recentStreamUrls.remove(url)
+        if (recentStreamUrls.size == 3) recentStreamUrls.removeFirst()
+        recentStreamUrls.addLast(url)
+    }
+
+    private fun showStreamUnsupported() {
+        Toast.makeText(this, R.string.browser_stream_unsupported, Toast.LENGTH_LONG).show()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

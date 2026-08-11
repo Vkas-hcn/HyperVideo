@@ -26,6 +26,18 @@ enum class VideoPlatform(
     FACEBOOK(
         "https://www.facebook.com/reel/",
         listOf("facebook.com", "fb.watch", "fb.com", "m.facebook.com"),
+    ),
+    SNAPCHAT(
+        "https://www.snapchat.com/spotlight",
+        listOf("snapchat.com"),
+    ),
+    LIKEE(
+        "https://likee.video",
+        listOf("likee.video", "likee.com"),
+    ),
+    KWAI(
+        "https://www.kwai.com",
+        listOf("kwai.com", "kw.ai"),
     );
 
     fun matches(raw: String): Boolean {

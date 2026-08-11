@@ -84,7 +84,7 @@
     <string name="platform_youtube">YouTube</string>
     <string name="platform_facebook">Facebook</string>
     <string name="search_link_invalid">Please enter a valid video URL</string>
-    <string name="search_link_unsupported">Only TikTok, Instagram, YouTube and Facebook links are supported</string>
+    <string name="search_link_unsupported">This video platform link is not supported</string>
     <string name="search_download_started">Download started</string>
     <string name="search_download_queued">Link saved. Download module will process it</string>
     <string name="browser_invalid_url">Please enter a valid web address</string>
@@ -95,6 +95,7 @@
     <string name="browser_no_video_found">No downloadable video found yet</string>
     <string name="browser_download_description">Saving to the Shorts folder</string>
     <string name="browser_download_failed">Unable to start the download</string>
+    <string name="browser_stream_unsupported">This page uses HLS/DASH streaming. Direct download is not supported yet.</string>
     <string name="local_shorts_empty">No videos downloaded to Shorts yet.</string>
     <string name="link_detected_title">Link Detected</string>
     <string name="link_detected_message">A video link was found in your clipboard. Would you like to open it now?</string>

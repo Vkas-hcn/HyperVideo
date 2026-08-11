@@ -8,7 +8,18 @@ import java.nio.charset.StandardCharsets
 object VideoUrlDetector {
     private val fileExtensions = setOf("mp4", "webm", "mov", "m4v", "3gp", "mkv")
 
+    fun isManifestUrl(rawUrl: String): Boolean {
+        val uri = runCatching { URI(rawUrl) }.getOrNull() ?: return false
+        if (uri.scheme !in setOf("http", "https") || uri.host.isNullOrBlank()) return false
+        val path = uri.path.orEmpty().lowercase()
+        return path.endsWith(".m3u8") || path.endsWith(".mpd") ||
+            path.contains("manifest") || path.contains("master.m3u8")
+    }
+
+    fun isBlobUrl(rawUrl: String): Boolean = rawUrl.trim().startsWith("blob:", ignoreCase = true)
+
     fun isDirectVideoUrl(rawUrl: String): Boolean {
+        if (isBlobUrl(rawUrl) || isManifestUrl(rawUrl)) return false
         val uri = runCatching { URI(rawUrl) }.getOrNull() ?: return false
         if (uri.scheme !in setOf("http", "https") || uri.host.isNullOrBlank()) return false
         val path = uri.path.orEmpty().lowercase()
@@ -23,7 +34,6 @@ object VideoUrlDetector {
 
     fun isDownloadableHttpUrl(rawUrl: String): Boolean {
         val uri = runCatching { URI(rawUrl) }.getOrNull() ?: return false
-        return uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank() &&
-            !uri.path.orEmpty().lowercase().let { it.endsWith(".m3u8") || it.endsWith(".mpd") }
+        return uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
     }
 }
