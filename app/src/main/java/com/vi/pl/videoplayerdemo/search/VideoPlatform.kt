@@ -1,6 +1,7 @@
 package com.vi.pl.videoplayerdemo.search
 
 import android.net.Uri
+import androidx.core.net.toUri
 
 /**
  * Platform identity for search UI.
@@ -41,7 +42,7 @@ fun normalizeUrl(raw: String): Uri? {
     val trimmed = raw.trim()
     if (trimmed.isEmpty()) return null
     val withScheme = if (trimmed.contains("://")) trimmed else "https://$trimmed"
-    val uri = runCatching { Uri.parse(withScheme) }.getOrNull() ?: return null
+    val uri = runCatching { withScheme.toUri() }.getOrNull() ?: return null
     if (uri.host.isNullOrBlank()) return null
     return uri
 }

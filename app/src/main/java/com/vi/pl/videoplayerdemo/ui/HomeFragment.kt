@@ -17,11 +17,13 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private lateinit var folderAdapter: FolderListAdapter
+    private lateinit var videoAdapter: LocalVideoListAdapter
     private lateinit var videoList: RecyclerView
     private lateinit var permissionContent: View
     private lateinit var settingsSteps: LinearLayout
@@ -59,6 +61,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         folderAdapter = FolderListAdapter { folder ->
             startActivity(
                 FolderDetailActivity.createIntent(requireContext(), folder.path, folder.name),
+            )
+        }
+        videoAdapter = LocalVideoListAdapter { category, index ->
+            val playlist = category.videos
+            startActivity(
+                PlayerActivity.createIntent(
+                    requireContext(),
+                    category.name,
+                    ArrayList(playlist.map { it.uri.toString() }),
+                    ArrayList(playlist.map { it.title }),
+                    index,
+                ),
             )
         }
         videoList.layoutManager = LinearLayoutManager(requireContext())
@@ -129,18 +143,14 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         layoutToggle.visibility = if (selectedTab == R.id.tab_folders) View.VISIBLE else View.GONE
         when (selectedTab) {
             R.id.tab_folders -> showFolders()
-            else -> {
-                // Videos / Shorts: UI placeholder for now.
-                folderAdapter.submit(emptyList())
-                videoList.visibility = View.GONE
-                emptyText.visibility = View.VISIBLE
-                emptyText.setText(R.string.feature_placeholder)
-            }
+            R.id.tab_videos -> showVideos(shortsOnly = false)
+            R.id.tab_shorts -> showVideos(shortsOnly = true)
         }
     }
 
     private fun showFolders() {
         val folders = LocalVideoLoader.loadFolders(requireContext())
+        videoList.adapter = folderAdapter
         folderAdapter.setGridMode(folderGridMode)
         folderAdapter.submit(folders)
         layoutToggle.setImageResource(
@@ -149,6 +159,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         videoList.visibility = if (folders.isEmpty()) View.GONE else View.VISIBLE
         emptyText.visibility = if (folders.isEmpty()) View.VISIBLE else View.GONE
         emptyText.setText(R.string.local_video_empty)
+    }
+
+    private fun showVideos(shortsOnly: Boolean) {
+        val categories = LocalVideoLoader.loadCategories(requireContext())
+            .filter { category ->
+                category.name.equals("Shorts", ignoreCase = true) == shortsOnly
+            }
+        videoList.adapter = videoAdapter
+        videoAdapter.submitCategories(categories)
+        videoList.visibility = if (categories.isEmpty()) View.GONE else View.VISIBLE
+        emptyText.visibility = if (categories.isEmpty()) View.VISIBLE else View.GONE
+        emptyText.setText(if (shortsOnly) R.string.local_shorts_empty else R.string.local_video_empty)
     }
 
     private fun selectTab(selected: TextView) {

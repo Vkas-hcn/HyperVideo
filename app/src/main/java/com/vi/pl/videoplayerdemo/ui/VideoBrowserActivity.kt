@@ -23,10 +23,13 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.search.VideoUrlDetector
@@ -37,6 +40,7 @@ import java.util.Locale
 class VideoBrowserActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var address: EditText
+    private lateinit var lockIcon: ImageView
     private lateinit var loading: View
     private lateinit var errorState: View
     private val recentVideoUrls = ArrayDeque<String>(3)
@@ -51,8 +55,14 @@ class VideoBrowserActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_video_browser)
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.video_browser_root)) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
         webView = findViewById(R.id.video_browser_webview)
         address = findViewById(R.id.video_browser_address)
+        lockIcon = findViewById(R.id.video_browser_lock)
         loading = findViewById(R.id.video_browser_loading)
         errorState = findViewById(R.id.video_browser_error)
         configureWebView()
@@ -60,8 +70,11 @@ class VideoBrowserActivity : AppCompatActivity() {
         findViewById<View>(R.id.video_browser_back).setOnClickListener {
             if (webView.canGoBack()) webView.goBack() else finish()
         }
-        findViewById<View>(R.id.video_browser_refresh).setOnClickListener { load(address.text.toString()) }
+        findViewById<View>(R.id.video_browser_refresh).setOnClickListener {
+            load(address.text.toString())
+        }
         findViewById<View>(R.id.video_browser_download).setOnClickListener { downloadCurrentVideo() }
+        findViewById<View>(R.id.video_browser_help).setOnClickListener { }
         address.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE) {
                 load(address.text.toString())
@@ -104,7 +117,7 @@ class VideoBrowserActivity : AppCompatActivity() {
             handler.removeCallbacks(timeout)
             loading.visibility = View.GONE
             if (!pageFailed) errorState.visibility = View.GONE
-            address.setText(url)
+            setAddressText(url)
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
@@ -133,8 +146,16 @@ class VideoBrowserActivity : AppCompatActivity() {
             return
         }
         recentVideoUrls.clear()
-        address.setText(url)
+        setAddressText(url)
         webView.loadUrl(url)
+    }
+
+    private fun setAddressText(url: String) {
+        val display = url.removePrefix("https://").removePrefix("http://")
+        address.setText(display)
+        lockIcon.setImageResource(
+            if (url.startsWith("https://", ignoreCase = true)) R.drawable.ic_lock else R.drawable.ic_unlock,
+        )
     }
 
     private fun rememberVideoUrl(url: String) = runOnUiThread {
