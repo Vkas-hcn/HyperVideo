@@ -18,4 +18,5 @@
     <color name="brand_red">#FFE21220</color>
     <color name="home_tab_unselected">#FF1A1C23</color>
     <color name="permission_text">#FFC4C0C2</color>
+    <color name="download_subtitle">#FF8E8E93</color>
 </resources>

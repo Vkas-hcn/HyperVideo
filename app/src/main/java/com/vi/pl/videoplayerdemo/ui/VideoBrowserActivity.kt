@@ -32,6 +32,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.download.DownloadRegistry
 import com.vi.pl.videoplayerdemo.search.VideoUrlDetector
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -257,7 +258,7 @@ class VideoBrowserActivity : AppCompatActivity() {
             request.addRequestHeader("User-Agent", it)
         }
         runCatching { getSystemService(DownloadManager::class.java).enqueue(request) }
-            .onSuccess { Toast.makeText(this, R.string.search_download_started, Toast.LENGTH_SHORT).show() }
+            .onSuccess { id -> DownloadRegistry.add(this, id); Toast.makeText(this, R.string.search_download_started, Toast.LENGTH_SHORT).show() }
             .onFailure { Toast.makeText(this, R.string.browser_download_failed, Toast.LENGTH_LONG).show() }
     }
 
