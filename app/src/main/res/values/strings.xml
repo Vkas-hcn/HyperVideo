@@ -101,4 +101,17 @@
     <string name="link_detected_message">A video link was found in your clipboard. Would you like to open it now?</string>
     <string name="open_now">Open Now</string>
     <string name="later">Later</string>
+    <string name="profile_user_name">Cosmic Voyager</string>
+    <string name="profile_user_meta">ID: 100829 | 326 Watchlisted</string>
+    <string name="profile_vip_title">CineFlow VIP</string>
+    <string name="profile_vip_valid">Valid until Dec 31, 2026</string>
+    <string name="profile_manage_plan">Manage Plan</string>
+    <string name="profile_continue_watching">Continue Watching</string>
+    <string name="profile_all_history">All History</string>
+    <string name="profile_favorites">Favorites</string>
+    <string name="profile_help_support">Help&amp;Support</string>
+    <string name="profile_privacy">Privacy</string>
+    <string name="profile_history_empty">No watch history yet.</string>
+    <string name="profile_edit_title">Profile</string>
+    <string name="profile_watch_history_title">Watch History</string>
 </resources>

@@ -48,6 +48,12 @@
         <activity
             android:name=".ui.VideoBrowserActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.ProfileEditActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ui.WatchHistoryActivity"
+            android:exported="false" />
         <service
             android:name=".player.BackgroundPlaybackService"
             android:exported="false"
