@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.download.DownloadRegistry
+import com.vi.pl.videoplayerdemo.local.VideoThumbnailLoader
 import java.util.Locale
 
 class DownloadFragment : Fragment(R.layout.fragment_download) {
@@ -230,17 +231,25 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
                 select.visibility = if (editing) View.VISIBLE else View.GONE
                 select.setImageResource(if (checked) R.drawable.ic_select_sel else R.drawable.ic_select_nor)
                 title.text = item.title
-                val quality = quality(item.title)
-                badge.text = quality
-                badge.setBackgroundResource(
-                    if (quality.equals("Dolby", true)) R.drawable.bg_quality_badge_dolby
-                    else R.drawable.bg_quality_badge,
-                )
-                item.uri?.let { thumb.setImageURI(Uri.parse(it)) }
-                    ?: thumb.setImageResource(R.drawable.ic_play)
+                badge.text = ""
+                badge.visibility = View.GONE
+                badge.setBackgroundResource(R.drawable.bg_quality_badge)
+                item.uri?.let { uri ->
+                    VideoThumbnailLoader.load(
+                        context,
+                        item.id,
+                        Uri.parse(uri),
+                        thumb,
+                        onVideoSize = { width, height ->
+                            quality(width, height)?.let {
+                                badge.text = it
+                                badge.visibility = View.VISIBLE
+                            }
+                        },
+                    )
+                } ?: thumb.setImageResource(R.drawable.ic_play)
                 if (completedTab) {
-                    // Design shows "4K · 2.4MB/s"; keep same visual format with size.
-                    subtitle.text = "$quality · ${formatSize(item.total.coerceAtLeast(item.bytes))}"
+                    subtitle.text = formatSize(item.total.coerceAtLeast(item.bytes))
                     progress.visibility = View.GONE
                     pause.visibility = View.GONE
                     play.visibility = View.VISIBLE
@@ -257,10 +266,17 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
             }
         }
 
-        private fun quality(title: String) = when {
-            title.contains("dolby", true) -> "Dolby"
-            title.contains("1080", true) -> "1080P"
-            else -> "4K"
+        private fun quality(width: Int, height: Int): String? {
+            val shortEdge = minOf(width, height)
+            return when {
+                shortEdge >= 2160 -> "4K"
+                shortEdge >= 1440 -> "2K"
+                shortEdge >= 1080 -> "1080P"
+                shortEdge >= 720 -> "720P"
+                shortEdge >= 480 -> "480P"
+                shortEdge > 0 -> "${shortEdge}P"
+                else -> null
+            }
         }
 
         private fun formatSpeed(bytes: Long): String = when {
