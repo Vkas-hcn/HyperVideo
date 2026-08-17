@@ -10,6 +10,19 @@ import kotlin.math.max
 object VideoFormat {
     private val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)
 
+    fun watchedAgo(watchedAtMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+        val delta = (nowMs - watchedAtMs).coerceAtLeast(0L)
+        val minutes = delta / 60_000L
+        val hours = delta / 3_600_000L
+        val days = delta / 86_400_000L
+        return when {
+            minutes < 1L -> "Just now"
+            minutes < 60L -> if (minutes == 1L) "1 minute ago" else "$minutes minutes ago"
+            hours < 24L -> if (hours == 1L) "1 hour ago" else "$hours hours ago"
+            else -> if (days == 1L) "1 day ago" else "$days days ago"
+        }
+    }
+
     fun duration(durationMs: Long): String {
         val totalSeconds = max(0L, durationMs / 1000L)
         val minutes = totalSeconds / 60L

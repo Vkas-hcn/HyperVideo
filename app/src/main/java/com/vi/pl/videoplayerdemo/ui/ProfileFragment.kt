@@ -1,14 +1,9 @@
 package com.vi.pl.videoplayerdemo.ui
 
-import android.Manifest
 import android.content.Context
-import android.content.SharedPreferences
-import android.content.pm.PackageManager
 import android.graphics.LinearGradient
 import android.graphics.Rect
 import android.graphics.Shader
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -24,10 +19,10 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
-import com.vi.pl.videoplayerdemo.local.LocalVideoItem
-import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
 import com.vi.pl.videoplayerdemo.local.VideoFormat
 import com.vi.pl.videoplayerdemo.local.VideoThumbnailLoader
+import com.vi.pl.videoplayerdemo.local.WatchHistoryItem
+import com.vi.pl.videoplayerdemo.local.WatchHistoryStore
 
 class ProfileFragment : Fragment(R.layout.fragment_profile) {
     private lateinit var historyList: RecyclerView
@@ -77,8 +72,7 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             startActivity(WatchHistoryActivity.createIntent(requireContext()))
         }
         view.findViewById<View>(R.id.profile_favorites).setOnClickListener {
-            // TODO: Implement Favorites feature in future iteration.
-            Toast.makeText(requireContext(), R.string.feature_placeholder, Toast.LENGTH_SHORT).show()
+            startActivity(FavoritesActivity.createIntent(requireContext()))
         }
         view.findViewById<View>(R.id.profile_help).setOnClickListener {
             // TODO: Implement Help & Support feature in future iteration.
@@ -120,27 +114,9 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
     }
 
     private fun loadHistory(): List<WatchHistoryItem> {
-        val local = loadLocalVideos()
-        if (local.isNotEmpty()) {
-            val store = requireContext().getSharedPreferences(PROGRESS_PREFS, Context.MODE_PRIVATE)
-            return local.take(3).mapIndexed { index, video ->
-                video.toHistory(index, storedProgress(store, video))
-            }
-        }
+        val stored = WatchHistoryStore.all(requireContext())
+        if (stored.isNotEmpty()) return stored.take(3)
         return mockHistory()
-    }
-
-    private fun loadLocalVideos(): List<LocalVideoItem> {
-        if (!hasVideoPermission()) return emptyList()
-        return runCatching {
-            LocalVideoLoader.loadCategories(requireContext()).flatMap { it.videos }
-        }.getOrDefault(emptyList())
-    }
-
-    private fun storedProgress(store: SharedPreferences, video: LocalVideoItem): Int {
-        val position = store.getLong("progress_${video.uri}", 0L).coerceAtLeast(0L)
-        if (video.durationMs <= 0L) return MOCK_PROGRESS.getOrElse(0) { 35 }
-        return ((position * 100) / video.durationMs).toInt().coerceIn(0, 100)
     }
 
     private fun mockHistory(): List<WatchHistoryItem> = listOf(
@@ -167,29 +143,6 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
                 ArrayList(playable.map { it.first.title }),
                 start,
             ),
-        )
-    }
-
-    private fun hasVideoPermission(): Boolean {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_VIDEO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-        return ContextCompat.checkSelfPermission(requireContext(), permission) ==
-            PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun LocalVideoItem.toHistory(index: Int, progress: Int): WatchHistoryItem {
-        val resolved = progress.takeIf { it > 0 } ?: MOCK_PROGRESS.getOrElse(index) { 35 }
-        return WatchHistoryItem(
-            videoId = id.toString(),
-            title = title,
-            uri = uri,
-            resolution = MOCK_RESOLUTION.getOrElse(index) { "1080P" },
-            progress = resolved.coerceIn(0, 100),
-            durationMs = durationMs,
-            localId = id,
         )
     }
 
@@ -238,33 +191,24 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
                 title.text = item.title
                 duration.text = VideoFormat.duration(item.durationMs)
                 progress.progress = item.progress.coerceIn(0, 100)
-                resolution.text = item.resolution
-                resolution.setBackgroundResource(badgeBackground(item.resolution))
-                val localId = item.localId
-                val uri = item.uri
-                if (localId != null && uri != null) {
+                resolution.text = ""
+                resolution.visibility = View.GONE
+                resolution.setBackgroundResource(R.drawable.bg_quality_badge)
+                item.uri?.let { uri ->
                     VideoThumbnailLoader.load(
                         context,
-                        localId,
+                        item.localId ?: uri.hashCode().toLong(),
                         uri,
                         cover,
                         onVideoSize = { width, height ->
-                            quality(width, height)?.let { label ->
-                                resolution.text = label
-                                resolution.setBackgroundResource(badgeBackground(label))
+                            quality(width, height)?.let {
+                                resolution.text = it
+                                resolution.visibility = View.VISIBLE
                             }
                         },
                     )
-                } else {
-                    cover.setImageResource(R.drawable.ic_play)
-                }
+                } ?: cover.setImageResource(R.drawable.ic_play)
             }
-        }
-
-        private fun badgeBackground(label: String): Int = when (label.uppercase()) {
-            "HDR" -> R.drawable.bg_quality_badge_hdr
-            "DOLBY" -> R.drawable.bg_quality_badge_dolby
-            else -> R.drawable.bg_quality_badge
         }
 
         private fun quality(width: Int, height: Int): String? {
@@ -280,20 +224,4 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             }
         }
     }
-
-    private companion object {
-        const val PROGRESS_PREFS = "video_player_progress"
-        val MOCK_PROGRESS = listOf(35, 55, 20)
-        val MOCK_RESOLUTION = listOf("4K", "HDR", "Dolby")
-    }
 }
-
-data class WatchHistoryItem(
-    val videoId: String,
-    val title: String,
-    val uri: Uri?,
-    val resolution: String,
-    val progress: Int,
-    val durationMs: Long,
-    val localId: Long?,
-)

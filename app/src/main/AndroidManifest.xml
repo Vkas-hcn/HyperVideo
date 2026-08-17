@@ -54,6 +54,9 @@
         <activity
             android:name=".ui.WatchHistoryActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.FavoritesActivity"
+            android:exported="false" />
         <service
             android:name=".player.BackgroundPlaybackService"
             android:exported="false"

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/history_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/bg_watch_rounded"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <FrameLayout
+        android:id="@+id/history_cover_frame"
+        android:layout_width="100dp"
+        android:layout_height="86dp"
+        android:background="@drawable/bg_thumb_rounded">
+
+        <ImageView
+            android:id="@+id/history_cover"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/ic_play" />
+
+        <TextView
+            android:id="@+id/history_resolution"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_quality_badge"
+            android:fontFamily="@font/inter_medium"
+            android:includeFontPadding="false"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/white"
+            android:textSize="10sp"
+            android:visibility="gone"
+            tools:text="4K"
+            tools:visibility="visible" />
+
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/history_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_medium"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            tools:text="Video Name" />
+
+        <TextView
+            android:id="@+id/history_watched_ago"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/inter_regular"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="#99FFFFFF"
+            android:textSize="13sp"
+            tools:text="2 hours ago" />
+
+        <ProgressBar
+            android:id="@+id/history_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:progress="35"
+            android:progressDrawable="@drawable/bg_download_progress" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/history_select"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_marginStart="8dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_select_nor"
+        android:visibility="visible" />
+</LinearLayout>

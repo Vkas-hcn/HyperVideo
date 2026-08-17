@@ -120,6 +120,20 @@ class AppActionDialog private constructor(
                 ),
             )
 
+        fun deleteHistory(
+            context: Context,
+            onConfirm: () -> Unit,
+        ): AppActionDialog =
+            AppActionDialog(
+                context,
+                Config(
+                    title = context.getString(R.string.delete),
+                    primaryText = context.getString(R.string.delete),
+                    message = context.getString(R.string.confirm_history_deletion),
+                    onPrimary = { onConfirm() },
+                ),
+            )
+
         fun linkDetected(
             context: Context,
             onOpen: () -> Unit,

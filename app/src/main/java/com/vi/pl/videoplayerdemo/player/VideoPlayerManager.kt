@@ -17,6 +17,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.vi.pl.videoplayerdemo.local.WatchHistoryStore
 import java.io.File
 import kotlin.math.max
 
@@ -290,6 +291,8 @@ class VideoPlayerManager(application: Application) : AndroidViewModel(applicatio
         val episode = currentEpisode() ?: return
         val position = player.currentPosition.takeIf { it >= 0 } ?: return
         progressStore.edit().putLong(progressKey(episode.id), position).apply()
+        val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0L
+        WatchHistoryStore.record(getApplication(), episode.id, episode.title, position, duration)
     }
 
     override fun onCleared() {

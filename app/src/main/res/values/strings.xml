@@ -47,6 +47,7 @@
     <string name="more_actions">More</string>
     <string name="apply_filter">Apply Filter</string>
     <string name="cancel">Cancel</string>
+    <string name="done">Done</string>
     <string name="confirm">Confirm</string>
     <string name="play_in_background">Play in Background</string>
     <string name="play_muted">Play Muted</string>
@@ -109,9 +110,16 @@
     <string name="profile_continue_watching">Continue Watching</string>
     <string name="profile_all_history">All History</string>
     <string name="profile_favorites">Favorites</string>
+    <string name="favorites_empty">No favorite videos yet.</string>
     <string name="profile_help_support">Help&amp;Support</string>
     <string name="profile_privacy">Privacy</string>
     <string name="profile_history_empty">No watch history yet.</string>
     <string name="profile_edit_title">Profile</string>
     <string name="profile_watch_history_title">Watch History</string>
+    <string name="edit">Edit</string>
+    <string name="select_all">Select All</string>
+    <string name="unselect_all">Unselect All</string>
+    <string name="delete_selected_format">Delete Selected (%1$d)</string>
+    <string name="confirm_history_deletion">Remove the selected watch history?</string>
+    <string name="progress_percent">%1$d%%</string>
 </resources>

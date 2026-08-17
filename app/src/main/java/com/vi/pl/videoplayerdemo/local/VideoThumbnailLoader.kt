@@ -49,7 +49,17 @@ object VideoThumbnailLoader {
         into.tag = key
         cache.get(key)?.let {
             into.setImageBitmap(it)
-            videoSizes.get(key)?.let { (width, height) -> onVideoSize(width, height) }
+            videoSizes.get(key)?.let { (width, height) ->
+                onVideoSize(width, height)
+                return
+            }
+            executor.execute {
+                val size = runCatching { videoSize(app, uri) }.getOrNull() ?: return@execute
+                videoSizes.put(key, size)
+                main.post {
+                    if (into.tag == key) onVideoSize(size.first, size.second)
+                }
+            }
             return
         }
         into.setImageResource(R.drawable.ic_play)
@@ -121,6 +131,22 @@ object VideoThumbnailLoader {
                 @Suppress("DEPRECATION")
                 retriever.frameAtTime
             }
+        } catch (_: Throwable) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun videoSize(context: Context, uri: Uri): Pair<Int, Int>? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, uri)
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull() ?: 0
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull() ?: 0
+            if (width > 0 || height > 0) width to height else null
         } catch (_: Throwable) {
             null
         } finally {

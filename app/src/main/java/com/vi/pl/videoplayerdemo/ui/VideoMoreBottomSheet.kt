@@ -13,6 +13,7 @@ import com.vi.pl.videoplayerdemo.R
 
 class VideoMoreBottomSheet(
     context: Context,
+    favorited: Boolean = false,
     private val onAction: (Action) -> Unit,
 ) : BottomSheetDialog(context, R.style.FilterBottomSheetTheme) {
 
@@ -29,7 +30,7 @@ class VideoMoreBottomSheet(
         val content = LayoutInflater.from(context).inflate(R.layout.bottom_sheet_video_more, null)
         setContentView(content)
         val container = content.findViewById<LinearLayout>(R.id.more_options)
-        OPTIONS.forEach { option ->
+        options(favorited).forEach { option ->
             val row = LayoutInflater.from(context).inflate(R.layout.item_video_more_option, container, false)
             val icon = row.findViewById<ImageView>(R.id.option_icon)
             val label = row.findViewById<TextView>(R.id.option_label)
@@ -54,14 +55,16 @@ class VideoMoreBottomSheet(
         val destructive: Boolean = false,
     )
 
-    private companion object {
-        val OPTIONS = listOf(
-            Option(Action.PLAY_BACKGROUND, R.drawable.ic_playinbackground, R.string.play_in_background),
-            Option(Action.PLAY_MUTED, R.drawable.ic_playmuted, R.string.play_muted),
-            Option(Action.FAVORITE, R.drawable.ic_favorite_nor, R.string.favorite),
-            Option(Action.RENAME, R.drawable.ic_rename, R.string.rename),
-            Option(Action.SHARE, R.drawable.ic_share, R.string.share),
-            Option(Action.DELETE, R.drawable.ic_deltele, R.string.delete, destructive = true),
-        )
-    }
+    private fun options(favorited: Boolean) = listOf(
+        Option(Action.PLAY_BACKGROUND, R.drawable.ic_playinbackground, R.string.play_in_background),
+        Option(Action.PLAY_MUTED, R.drawable.ic_playmuted, R.string.play_muted),
+        Option(
+            Action.FAVORITE,
+            if (favorited) R.drawable.ic_favorites_sle else R.drawable.ic_favorite_nor,
+            R.string.favorite,
+        ),
+        Option(Action.RENAME, R.drawable.ic_rename, R.string.rename),
+        Option(Action.SHARE, R.drawable.ic_share, R.string.share),
+        Option(Action.DELETE, R.drawable.ic_deltele, R.string.delete, destructive = true),
+    )
 }

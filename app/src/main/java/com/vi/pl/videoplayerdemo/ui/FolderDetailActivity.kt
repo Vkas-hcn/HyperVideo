@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.local.FavoriteStore
 import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
@@ -119,7 +120,7 @@ class FolderDetailActivity : AppCompatActivity() {
     }
 
     private fun showMoreMenu(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
-        VideoMoreBottomSheet(this) { action ->
+        VideoMoreBottomSheet(this, FavoriteStore.contains(this, item.uri.toString())) { action ->
             when (action) {
                 VideoMoreBottomSheet.Action.PLAY_BACKGROUND -> {
                     maybeRequestNotificationPermission()
@@ -127,16 +128,12 @@ class FolderDetailActivity : AppCompatActivity() {
                 }
                 VideoMoreBottomSheet.Action.PLAY_MUTED ->
                     openPlayer(item, playlist, muted = true)
-                VideoMoreBottomSheet.Action.FAVORITE -> onFavoriteClick()
+                VideoMoreBottomSheet.Action.FAVORITE -> FavoriteStore.toggle(this, item)
                 VideoMoreBottomSheet.Action.RENAME -> showRename(item)
                 VideoMoreBottomSheet.Action.SHARE -> LocalVideoActions.share(this, item)
                 VideoMoreBottomSheet.Action.DELETE -> showDelete(item)
             }
         }.show()
-    }
-
-    private fun onFavoriteClick() {
-        // Reserved for later favorite persistence.
     }
 
     private fun showRename(item: LocalVideoItem) {

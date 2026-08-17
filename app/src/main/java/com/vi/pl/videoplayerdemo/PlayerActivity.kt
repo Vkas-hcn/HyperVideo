@@ -81,6 +81,11 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        playerManager.saveCurrentProgress()
+        super.onPause()
+    }
+
     override fun onStop() {
         super.onStop()
         playerManager.saveCurrentProgress()
