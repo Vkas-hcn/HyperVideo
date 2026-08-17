@@ -75,12 +75,10 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             startActivity(FavoritesActivity.createIntent(requireContext()))
         }
         view.findViewById<View>(R.id.profile_help).setOnClickListener {
-            // TODO: Implement Help & Support feature in future iteration.
-            Toast.makeText(requireContext(), R.string.feature_placeholder, Toast.LENGTH_SHORT).show()
+            FeedbackDialog(requireContext()).show()
         }
         view.findViewById<View>(R.id.profile_privacy).setOnClickListener {
-            // TODO: Implement Privacy page in future iteration.
-            Toast.makeText(requireContext(), R.string.feature_placeholder, Toast.LENGTH_SHORT).show()
+            startActivity(PrivacyActivity.createIntent(requireContext()))
         }
         bindHistory()
     }
