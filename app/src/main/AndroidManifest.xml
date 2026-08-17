@@ -67,6 +67,9 @@
         <activity
             android:name=".ui.PrivacyActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.SubscriptionActivity"
+            android:exported="false" />
         <service
             android:name=".player.BackgroundPlaybackService"
             android:exported="false"

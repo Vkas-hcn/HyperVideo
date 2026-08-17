@@ -65,8 +65,7 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             startActivity(ProfileEditActivity.createIntent(requireContext()))
         }
         view.findViewById<View>(R.id.profile_manage_plan).setOnClickListener {
-            // TODO: Implement Google Play subscription flow.
-            Toast.makeText(requireContext(), R.string.feature_placeholder, Toast.LENGTH_SHORT).show()
+            startActivity(SubscriptionActivity.createIntent(requireContext()))
         }
         view.findViewById<View>(R.id.profile_history_header).setOnClickListener {
             startActivity(WatchHistoryActivity.createIntent(requireContext()))

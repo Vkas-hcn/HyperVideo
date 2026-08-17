@@ -133,4 +133,23 @@
     <string name="delete_selected_format">Delete Selected (%1$d)</string>
     <string name="confirm_history_deletion">Remove the selected watch history?</string>
     <string name="progress_percent">%1$d%%</string>
+    <string name="subscription_title">Cine Flow VIP</string>
+    <string name="subscription_subtitle">Unlock all HD movies and exclusive benefits</string>
+    <string name="subscription_ad_free">Ad-Free</string>
+    <string name="subscription_ad_free_desc">Enjoy with no interruptions.</string>
+    <string name="subscription_ultra_hd">Ultra HD</string>
+    <string name="subscription_ultra_hd_desc">Up to 4K streaming.</string>
+    <string name="subscription_weekly">Weekly</string>
+    <string name="subscription_weekly_price">$0.99</string>
+    <string name="subscription_weekly_period">/ weekly</string>
+    <string name="subscription_monthly">Monthly</string>
+    <string name="subscription_monthly_price">$2.99</string>
+    <string name="subscription_monthly_period">/ month</string>
+    <string name="subscription_yearly">Yearly</string>
+    <string name="subscription_yearly_price">$15.99</string>
+    <string name="subscription_yearly_period">/ yearly</string>
+    <string name="subscription_save_67">Save 67%</string>
+    <string name="subscription_best_value">Best Value</string>
+    <string name="subscription_terms">• Subscription automatically renews unless canceled. Cancel anytime.\n• Digital products are non-refundable once purchased.</string>
+    <string name="subscription_upgrade">Upgrade To VIP</string>
 </resources>
