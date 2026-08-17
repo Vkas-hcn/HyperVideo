@@ -4,7 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.LinearGradient
 import android.graphics.Rect
+import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -42,6 +44,7 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             outlineProvider = ViewOutlineProvider.BACKGROUND
             clipToOutline = true
         }
+        applyVipTitleGradient(view.findViewById(R.id.tv_vip_title))
         historyList = view.findViewById(R.id.profile_history_list)
         historyEmpty = view.findViewById(R.id.profile_history_empty)
         adapter = WatchHistoryAdapter(requireContext()) { item, playlist ->
@@ -91,6 +94,22 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
     override fun onResume() {
         super.onResume()
         if (::adapter.isInitialized) bindHistory()
+    }
+
+    private fun applyVipTitleGradient(title: TextView) {
+        title.post {
+            val width = title.paint.measureText(title.text.toString()).coerceAtLeast(1f)
+            title.paint.shader = LinearGradient(
+                0f,
+                0f,
+                width,
+                0f,
+                ContextCompat.getColor(requireContext(), R.color.vip_gradient_start),
+                ContextCompat.getColor(requireContext(), R.color.vip_gradient_end),
+                Shader.TileMode.CLAMP,
+            )
+            title.invalidate()
+        }
     }
 
     private fun bindHistory() {
