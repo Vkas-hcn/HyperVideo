@@ -104,7 +104,7 @@
     <string name="later">Later</string>
     <string name="profile_user_name">Cosmic Voyager</string>
     <string name="profile_user_meta">ID: 100829 | 326 Watchlisted</string>
-    <string name="profile_vip_title">CineFlow VIP</string>
+    <string name="profile_vip_title">Hyper Video VIP</string>
     <string name="profile_vip_valid">Valid until Dec 31, 2026</string>
     <string name="profile_manage_plan">Manage Plan</string>
     <string name="profile_continue_watching">Continue Watching</string>
@@ -124,7 +124,8 @@
     <string name="privacy_policy_url" translatable="false">https://www.cineflow.app/privacy</string>
     <string name="privacy_load_failed">Unable to load the privacy policy</string>
     <string name="retry">Retry</string>
-    <string name="profile_history_empty">No watch history yet.</string>
+    <string name="profile_history_empty">No watch history yet</string>
+    <string name="profile_history_empty_hint">Videos you watch will appear here</string>
     <string name="profile_edit_title">Profile</string>
     <string name="profile_watch_history_title">Watch History</string>
     <string name="edit">Edit</string>
@@ -133,7 +134,7 @@
     <string name="delete_selected_format">Delete Selected (%1$d)</string>
     <string name="confirm_history_deletion">Remove the selected watch history?</string>
     <string name="progress_percent">%1$d%%</string>
-    <string name="subscription_title">Cine Flow VIP</string>
+    <string name="subscription_title">Hyper Video VIP</string>
     <string name="subscription_subtitle">Unlock all HD movies and exclusive benefits</string>
     <string name="subscription_ad_free">Ad-Free</string>
     <string name="subscription_ad_free_desc">Enjoy with no interruptions.</string>
@@ -152,4 +153,24 @@
     <string name="subscription_best_value">Best Value</string>
     <string name="subscription_terms">• Subscription automatically renews unless canceled. Cancel anytime.\n• Digital products are non-refundable once purchased.</string>
     <string name="subscription_upgrade">Upgrade To VIP</string>
+    <string name="login_slogan">Unleash a Universe of HD Cinema on the Go</string>
+    <string name="login_email_hint">Email Address</string>
+    <string name="login_password_hint">Password</string>
+    <string name="login_remember">Remember me</string>
+    <string name="login_action">Log in</string>
+    <string name="login_no_account">Don’t have account?</string>
+    <string name="login_sign_up">Sign Up</string>
+    <string name="login_or_continue">or continue with</string>
+    <string name="login_google">Google</string>
+    <string name="login_guest_prompt">Use the app without an account?</string>
+    <string name="login_guest_mode">Guest Mode</string>
+    <string name="login_show_password">Show password</string>
+    <string name="login_email_invalid">Enter a valid email address</string>
+    <string name="login_password_invalid">Password must be at least 6 characters</string>
+    <string name="login_email_later">Email login will be available soon</string>
+    <string name="login_signup_later">Sign up will be available soon</string>
+    <string name="login_google_failed">Google sign-in failed</string>
+    <string name="profile_guest_name">Guest</string>
+    <string name="profile_guest_meta">Tap to log in</string>
+    <string name="google_web_client_id" translatable="false">275646632040-4kfqi31l2m12eqtmo96k9nbb9p9e4sq7.apps.googleusercontent.com</string>
 </resources>

@@ -62,7 +62,7 @@ object VideoThumbnailLoader {
             }
             return
         }
-        into.setImageResource(R.drawable.ic_play)
+        into.setImageResource(R.drawable.ic_default_cover)
         executor.execute {
             val retriever = MediaMetadataRetriever()
             try {
