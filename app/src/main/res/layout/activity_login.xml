@@ -258,6 +258,7 @@
         android:background="@drawable/bg_login_card"
         android:gravity="center_vertical"
         android:orientation="horizontal"
+        android:visibility="gone"
         android:paddingHorizontal="16dp"
         android:paddingVertical="14dp">
 

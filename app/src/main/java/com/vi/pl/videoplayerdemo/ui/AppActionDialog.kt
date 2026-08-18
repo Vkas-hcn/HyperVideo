@@ -3,11 +3,13 @@ package com.vi.pl.videoplayerdemo.ui
 import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
+import android.text.InputFilter
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.TextView
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.button.MaterialButton
 import com.vi.pl.videoplayerdemo.R
 
@@ -27,6 +29,9 @@ class AppActionDialog private constructor(
         val inputInitial: CharSequence? = null,
         val inputLabel: CharSequence? = null,
         val cancelText: CharSequence? = null,
+        val maxLength: Int? = null,
+        val emptyError: CharSequence? = null,
+        val maxLengthError: CharSequence? = null,
         val onPrimary: (input: String?) -> Unit,
     )
 
@@ -58,17 +63,28 @@ class AppActionDialog private constructor(
             inputView?.isFocusable = false
             inputView?.isFocusableInTouchMode = false
         } else {
+            val errorView = findViewById<TextView>(R.id.dialog_input_error)
             findViewById<TextView>(R.id.dialog_input_label).text =
                 config.inputLabel ?: context.getString(R.string.enter_new_name)
+            val max = config.maxLength
+            if (max != null) {
+                inputView?.filters = arrayOf(InputFilter.LengthFilter(max))
+            }
             inputView?.setText(config.inputInitial)
             inputView?.setSelection(inputView?.text?.length ?: 0)
+            inputView?.doAfterTextChanged { text ->
+                showInputError(errorView, text?.toString().orEmpty())
+            }
             clear.setOnClickListener { inputView?.text?.clear() }
         }
 
         primary.text = config.primaryText
         primary.setOnClickListener {
             val value = if (showInput) inputView?.text?.toString()?.trim().orEmpty() else null
-            if (showInput && value.isNullOrBlank()) return@setOnClickListener
+            if (showInput) {
+                val errorView = findViewById<TextView>(R.id.dialog_input_error)
+                if (showInputError(errorView, value.orEmpty())) return@setOnClickListener
+            }
             config.onPrimary(value)
             dismiss()
         }
@@ -88,6 +104,18 @@ class AppActionDialog private constructor(
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(inputView, InputMethodManager.SHOW_IMPLICIT)
         }
+    }
+
+    private fun showInputError(errorView: TextView, raw: String): Boolean {
+        val value = raw.trim()
+        val message = when {
+            value.isEmpty() -> config.emptyError
+            config.maxLength != null && value.length > config.maxLength -> config.maxLengthError
+            else -> null
+        }
+        errorView.isVisible = message != null
+        errorView.text = message
+        return value.isEmpty() || (config.maxLength != null && value.length > config.maxLength)
     }
 
     companion object {
@@ -131,6 +159,25 @@ class AppActionDialog private constructor(
                     primaryText = context.getString(R.string.delete),
                     message = context.getString(R.string.confirm_history_deletion),
                     onPrimary = { onConfirm() },
+                ),
+            )
+
+        fun editNickname(
+            context: Context,
+            currentName: String,
+            onConfirm: (String) -> Unit,
+        ): AppActionDialog =
+            AppActionDialog(
+                context,
+                Config(
+                    title = context.getString(R.string.profile_display_name),
+                    primaryText = context.getString(R.string.confirm),
+                    inputInitial = currentName,
+                    inputLabel = context.getString(R.string.profile_display_name),
+                    maxLength = 15,
+                    emptyError = context.getString(R.string.profile_name_empty),
+                    maxLengthError = context.getString(R.string.profile_name_too_long),
+                    onPrimary = { name -> onConfirm(name.orEmpty()) },
                 ),
             )
 

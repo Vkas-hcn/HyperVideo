@@ -81,6 +81,18 @@
                 android:contentDescription="@string/clear_input"
                 android:src="@drawable/ic_clos" />
         </FrameLayout>
+
+        <TextView
+            android:id="@+id/dialog_input_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="@font/inter_regular"
+            android:textColor="@color/brand_red"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="Nickname cannot be empty"
+            tools:visibility="visible" />
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton

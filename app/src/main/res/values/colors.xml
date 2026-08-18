@@ -19,6 +19,7 @@
     <color name="home_tab_unselected">#FF1A1C23</color>
     <color name="permission_text">#FFC4C0C2</color>
     <color name="download_subtitle">#FF8E8E93</color>
+    <color name="helper_gray">#FF8E8E93</color>
     <color name="vip_gradient_start">#FFE11322</color>
     <color name="vip_gradient_end">#FF552BE6</color>
     <color name="profile_menu_divider">#FF2A2C34</color>

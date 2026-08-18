@@ -1,7 +1,6 @@
 package com.vi.pl.videoplayerdemo.ui
 
 import android.content.Context
-import android.graphics.BitmapFactory
 import android.graphics.LinearGradient
 import android.graphics.Rect
 import android.graphics.Shader
@@ -25,8 +24,6 @@ import com.vi.pl.videoplayerdemo.local.VideoFormat
 import com.vi.pl.videoplayerdemo.local.VideoThumbnailLoader
 import com.vi.pl.videoplayerdemo.local.WatchHistoryItem
 import com.vi.pl.videoplayerdemo.local.WatchHistoryStore
-import java.net.HttpURLConnection
-import java.net.URL
 
 class ProfileFragment : Fragment(R.layout.fragment_profile) {
     private lateinit var historyList: RecyclerView
@@ -66,7 +63,14 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
         })
 
         view.findViewById<View>(R.id.profile_user_row).setOnClickListener {
-            startActivity(LoginActivity.createIntent(requireContext()))
+            val ctx = requireContext()
+            startActivity(
+                if (UserSession.get(ctx) == null) {
+                    LoginActivity.createIntent(ctx)
+                } else {
+                    ProfileEditActivity.createIntent(ctx)
+                },
+            )
         }
         view.findViewById<View>(R.id.profile_manage_plan).setOnClickListener {
             startActivity(SubscriptionActivity.createIntent(requireContext()))
@@ -116,26 +120,7 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             user?.name?.takeIf { it.isNotBlank() } ?: getString(R.string.profile_guest_name)
         root.findViewById<TextView>(R.id.profile_user_meta).text =
             user?.email?.takeIf { it.isNotBlank() } ?: getString(R.string.profile_guest_meta)
-        bindAvatar(root.findViewById(R.id.profile_avatar), user?.photoUrl)
-    }
-
-    private fun bindAvatar(avatar: ImageView, url: String?) {
-        avatar.setImageDrawable(null)
-        avatar.tag = url
-        if (url.isNullOrBlank()) return
-        Thread {
-            val bmp = runCatching {
-                val conn = URL(url).openConnection() as HttpURLConnection
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
-                conn.instanceFollowRedirects = true
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-                conn.inputStream.use { BitmapFactory.decodeStream(it) }
-            }.getOrNull()
-            avatar.post {
-                if (avatar.tag == url && bmp != null) avatar.setImageBitmap(bmp)
-            }
-        }.start()
+        UserSession.bindPhoto(root.findViewById(R.id.profile_avatar), user?.photoUrl)
     }
 
     private fun bindHistory() {
