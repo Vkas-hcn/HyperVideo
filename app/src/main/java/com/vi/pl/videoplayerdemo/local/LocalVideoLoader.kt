@@ -20,8 +20,10 @@ object LocalVideoLoader {
             .sortedBy { it.name.lowercase() }
     }
 
-    fun loadFolderVideos(context: Context, folderPath: String): List<LocalVideoItem> =
-        queryVideos(context).filter { it.folderPath == folderPath }
+    fun loadFolderVideos(context: Context, folderPath: String): List<LocalVideoItem> {
+        val path = canonicalFolderPath(folderPath, folderPath.substringAfterLast('/'))
+        return queryVideos(context).filter { it.folderPath == path }
+    }
 
     fun loadCategories(context: Context): List<LocalVideoCategory> =
         loadFolders(context).map { LocalVideoCategory(name = it.name, videos = it.videos) }
@@ -65,7 +67,7 @@ object LocalVideoLoader {
                 val id = cursor.getLong(idColumn)
                 val bucket = cursor.getString(bucketColumn).orEmpty().ifBlank { "Other" }
                 val rawPath = cursor.getString(pathColumn).orEmpty()
-                val folderPath = normalizeFolderPath(rawPath, bucket)
+                val folderPath = canonicalFolderPath(normalizeFolderPath(rawPath, bucket), bucket)
                 val folderName = folderPath.substringAfterLast('/').ifBlank { bucket }
                 result += LocalVideoItem(
                     id = id,
@@ -93,4 +95,12 @@ object LocalVideoLoader {
         }
         return path.ifBlank { fallbackName }
     }
+
+    private fun canonicalFolderPath(path: String, bucket: String): String {
+        val name = path.substringAfterLast('/').ifBlank { bucket }
+        return if (name.equals(SHORTS_FOLDER_NAME, ignoreCase = true)) SHORTS_FOLDER_PATH else path
+    }
+
+    private const val SHORTS_FOLDER_NAME = "Shorts"
+    private const val SHORTS_FOLDER_PATH = "Movies/Shorts"
 }

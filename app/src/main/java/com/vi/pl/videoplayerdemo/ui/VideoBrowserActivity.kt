@@ -1,15 +1,12 @@
 package com.vi.pl.videoplayerdemo.ui
 
 import android.Manifest
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -32,11 +29,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.vi.pl.videoplayerdemo.R
-import com.vi.pl.videoplayerdemo.download.DownloadRegistry
+import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
+import com.vi.pl.videoplayerdemo.search.VideoPlatform
 import com.vi.pl.videoplayerdemo.search.VideoUrlDetector
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class VideoBrowserActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -46,6 +41,7 @@ class VideoBrowserActivity : AppCompatActivity() {
     private lateinit var errorState: View
     private val recentVideoUrls = ArrayDeque<String>(3)
     private val recentStreamUrls = ArrayDeque<String>(3)
+    private val recentFacebookCdnUrls = ArrayDeque<String>(3)
     private val handler = Handler(Looper.getMainLooper())
     private var pageLoaded = false
     private var pageFailed = false
@@ -94,6 +90,8 @@ class VideoBrowserActivity : AppCompatActivity() {
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         }
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
         webView.webViewClient = browserClient()
         webView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {
@@ -138,7 +136,8 @@ class VideoBrowserActivity : AppCompatActivity() {
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             request.url.toString().let { url ->
                 when {
-                    VideoUrlDetector.isDirectVideoUrl(url) -> rememberVideoUrl(url)
+                    VideoUrlDetector.isFacebookCdnUrl(url) || VideoUrlDetector.isDirectVideoUrl(url) ->
+                        rememberVideoUrl(url)
                     VideoUrlDetector.isManifestUrl(url) -> rememberStreamUrl(url)
                 }
             }
@@ -154,6 +153,7 @@ class VideoBrowserActivity : AppCompatActivity() {
         }
         recentVideoUrls.clear()
         recentStreamUrls.clear()
+        recentFacebookCdnUrls.clear()
         setAddressText(url)
         webView.loadUrl(url)
     }
@@ -167,22 +167,42 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     private fun rememberVideoUrl(url: String) = runOnUiThread {
-        recentVideoUrls.remove(url)
+        if (VideoUrlDetector.isFacebookCdnUrl(url)) {
+            val full = VideoUrlDetector.stripByteRange(url)
+            recentFacebookCdnUrls.remove(full)
+            if (recentFacebookCdnUrls.size == 3) recentFacebookCdnUrls.removeFirst()
+            recentFacebookCdnUrls.addLast(full)
+        }
+        val stored = VideoUrlDetector.facebookReelUrlFromCdn(url)
+            ?: url.takeUnless(VideoUrlDetector::hasByteRange)
+            ?: return@runOnUiThread
+        recentVideoUrls.remove(stored)
         if (recentVideoUrls.size == 3) recentVideoUrls.removeFirst()
-        recentVideoUrls.addLast(url)
+        recentVideoUrls.addLast(stored)
     }
 
     private fun downloadCurrentVideo() {
         webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
-            val currentUrl = encodedUrl.takeUnless { it == "null" }?.trim('"')
+            val resolved = encodedUrl.takeUnless { it == "null" }?.trim('"')
                 ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
-            if (currentUrl != null && VideoUrlDetector.isDirectVideoUrl(currentUrl)) {
-                enqueueDownload(currentUrl)
-            } else if (currentUrl != null && VideoUrlDetector.isManifestUrl(currentUrl)) {
-                showStreamUnsupported()
-            } else {
-                showVideoSelection()
-            }
+            downloadUrl(resolved, webView.url)
+                ?.let { enqueueDownload(it, facebookFallback(resolved)) }
+                ?: Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun downloadUrl(resolved: String?, pageUrl: String?): String? {
+        val page = pageUrl?.takeIf(VideoUrlDetector::isDownloadableHttpUrl)
+        val fromJs = resolved
+            ?.takeUnless(VideoUrlDetector::isBlobUrl)
+        val sniffed = recentVideoUrls.toList().asReversed()
+        val candidates = listOfNotNull(fromJs, page) + sniffed
+        return when (VideoPlatform.fromUrl(page ?: fromJs.orEmpty())) {
+            VideoPlatform.FACEBOOK ->
+                candidates.firstNotNullOfOrNull { VideoUrlDetector.facebookDownloadUrl(it) }
+                    ?: candidates.firstOrNull { VideoUrlDetector.isDirectVideoUrl(it) }
+            VideoPlatform.YOUTUBE -> page ?: fromJs
+            else -> page ?: fromJs ?: sniffed.firstOrNull()
         }
     }
 
@@ -218,7 +238,7 @@ class VideoBrowserActivity : AppCompatActivity() {
                 setPadding(0, dp(20), 0, dp(20))
                 setOnClickListener {
                     sheet.dismiss()
-                    enqueueDownload(url)
+                    enqueueDownload(url, facebookFallback(url))
                 }
             })
             if (index < urls.lastIndex) content.addView(View(this).apply {
@@ -230,10 +250,16 @@ class VideoBrowserActivity : AppCompatActivity() {
         sheet.show()
     }
 
-    private fun enqueueDownload(url: String) {
-        if (!VideoUrlDetector.isDirectVideoUrl(url)) {
-            if (VideoUrlDetector.isManifestUrl(url)) showStreamUnsupported()
-            else Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+    private fun facebookFallback(resolved: String?): String {
+        val fromJs = resolved?.takeUnless(VideoUrlDetector::isBlobUrl)
+            ?.takeIf(VideoUrlDetector::isFacebookCdnUrl)
+            ?.let(VideoUrlDetector::stripByteRange)
+        return fromJs ?: recentFacebookCdnUrls.lastOrNull().orEmpty()
+    }
+
+    private fun enqueueDownload(url: String, fallbackUrl: String = "") {
+        if (!VideoUrlDetector.isDownloadableHttpUrl(url)) {
+            Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
             return
         }
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
@@ -243,23 +269,50 @@ class VideoBrowserActivity : AppCompatActivity() {
             requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), WRITE_STORAGE_REQUEST)
             return
         }
-        val extension = url.substringBefore('?').substringAfterLast('.', "mp4")
-            .lowercase().takeIf { it in setOf("mp4", "webm", "mov", "m4v", "3gp", "mkv") } ?: "mp4"
-        val name = "Shorts_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.$extension"
-        val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle(name)
-            .setDescription(getString(R.string.browser_download_description))
-            .setMimeType("video/$extension")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Shorts/$name")
-        CookieManager.getInstance().getCookie(url)?.let { request.addRequestHeader("Cookie", it) }
-        webView.url?.let { request.addRequestHeader("Referer", it) }
-        webView.settings.userAgentString.takeIf { it.isNotBlank() }?.let {
-            request.addRequestHeader("User-Agent", it)
+        if (VideoPlatform.fromUrl(url) == VideoPlatform.YOUTUBE && !isYoutubeWatchUrl(url)) {
+            Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+            return
         }
-        runCatching { getSystemService(DownloadManager::class.java).enqueue(request) }
-            .onSuccess { id -> DownloadRegistry.add(this, id); Toast.makeText(this, R.string.search_download_started, Toast.LENGTH_SHORT).show() }
-            .onFailure { Toast.makeText(this, R.string.browser_download_failed, Toast.LENGTH_LONG).show() }
+        // YouTube's extractor must pick its own client. The WebView Android UA causes HTTP 400;
+        // cookies from this session are still required to pass YouTube's bot check.
+        val page = webView.url ?: url
+        val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
+        val userAgent = if (youtube) "" else webView.settings.userAgentString
+        VideoDownloadRepository.enqueue(
+            this,
+            url,
+            userAgent = userAgent,
+            cookies = cookiesFor(page),
+            referer = if (youtube) "" else page,
+            fallbackUrl = fallbackUrl,
+        )
+        Toast.makeText(this, R.string.search_download_queued, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun cookiesFor(url: String): String {
+        val parts = mutableListOf<String>()
+        CookieManager.getInstance().getCookie(url)?.let(parts::add)
+        when (VideoPlatform.fromUrl(url)) {
+            VideoPlatform.YOUTUBE ->
+                CookieManager.getInstance().getCookie("https://www.youtube.com")?.let(parts::add)
+            VideoPlatform.FACEBOOK -> listOf(
+                "https://www.facebook.com",
+                "https://m.facebook.com",
+                "https://web.facebook.com",
+            ).forEach { CookieManager.getInstance().getCookie(it)?.let(parts::add) }
+            else -> Unit
+        }
+        return parts.flatMap { it.split(';') }.map { it.trim() }.filter { it.contains('=') }.distinct().joinToString("; ")
+    }
+
+    private fun isYoutubeWatchUrl(url: String): Boolean {
+        val uri = android.net.Uri.parse(url)
+        val path = uri.path.orEmpty()
+        return !uri.getQueryParameter("v").isNullOrBlank() ||
+            path.contains("/shorts/") && path.trimEnd('/').substringAfterLast('/').length >= 6 ||
+            path.contains("/live/") ||
+            path.contains("/embed/") ||
+            uri.host?.contains("youtu.be") == true
     }
 
     private fun rememberStreamUrl(url: String) = runOnUiThread {
@@ -307,9 +360,47 @@ class VideoBrowserActivity : AppCompatActivity() {
         private const val WRITE_STORAGE_REQUEST = 701
         private const val CURRENT_VIDEO_URL_SCRIPT = """
             (function() {
-              const videos = Array.from(document.querySelectorAll('video'));
-              const video = videos.find(function(v) { return !v.paused && v.readyState > 1; }) || videos[0];
-              return video ? (video.currentSrc || video.src || '') : '';
+              function abs(u) { try { return new URL(u, location.href).href; } catch (e) { return u || ''; } }
+              function pick(u) {
+                if (!u) return '';
+                var tests = [/\/reel\/\d{5,}/i,/\/reels\/\d{5,}/i,/\/share\/r\/[^\/?#]+/i,/\/share\/v\/[^\/?#]+/i,/\/videos\/\d{5,}/i,/fb\.watch\/[^\/?#]+/i];
+                for (var i = 0; i < tests.length; i++) if (tests[i].test(u)) return abs(u).split('#')[0];
+                return '';
+              }
+              function fbcdn(u) {
+                return u && u.indexOf('fbcdn.net') !== -1 && (u.indexOf('efg=') !== -1 || u.indexOf('.mp4') !== -1);
+              }
+              var href = location.href || '';
+              var canon = (document.querySelector('link[rel="canonical"]') || {}).href || '';
+              var og = (document.querySelector('meta[property="og:url"]') || {}).content || '';
+              var chosen = pick(href) || pick(canon) || pick(og);
+              var videos = Array.from(document.querySelectorAll('video'));
+              var video = videos.find(function(v) { return !v.paused && v.readyState > 1; }) || videos[0];
+              if (!chosen && video) {
+                var node = video;
+                for (var d = 0; d < 14 && node && !chosen; d++) {
+                  var links = node.querySelectorAll ? node.querySelectorAll('a[href*="/reel/"],a[href*="/reels/"],a[href*="/videos/"],a[href*="/share/r/"]') : [];
+                  for (var i = 0; i < links.length && !chosen; i++) chosen = pick(links[i].href);
+                  node = node.parentElement;
+                }
+              }
+              if (!chosen) {
+                var html = document.documentElement.innerHTML || '';
+                var id = (html.match(/\/reel\/(\d{10,})/) || html.match(/"video_id"\s*:\s*"?(\d{10,})/) || [])[1];
+                if (id) chosen = 'https://www.facebook.com/reel/' + id;
+              }
+              if (!chosen) {
+                try {
+                  var entries = performance.getEntriesByType('resource');
+                  for (var i = entries.length - 1; i >= 0; i--) {
+                    if (fbcdn(entries[i].name)) { chosen = entries[i].name; break; }
+                  }
+                } catch (e) {}
+              }
+              var src = video ? (video.currentSrc || video.src || '') : '';
+              if (fbcdn(src)) return chosen && chosen.indexOf('/reel/') !== -1 ? chosen : src;
+              if (src && src.indexOf('http') === 0) return chosen || src;
+              return chosen || href;
             })();
         """
 

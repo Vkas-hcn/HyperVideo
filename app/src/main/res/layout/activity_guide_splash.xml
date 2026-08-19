@@ -11,7 +11,7 @@
         android:layout_gravity="center"
         android:layout_marginBottom="100dp"
         android:contentDescription="@string/app_name"
-        android:src="@mipmap/ic_launcher" />
+        android:src="@drawable/ic_launcher_foreground" />
 
     <ProgressBar
         android:id="@+id/splash_progress"

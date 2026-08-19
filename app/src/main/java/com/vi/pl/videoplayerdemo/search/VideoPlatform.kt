@@ -25,7 +25,7 @@ enum class VideoPlatform(
     ),
     FACEBOOK(
         "https://www.facebook.com/reel/",
-        listOf("facebook.com", "fb.watch", "fb.com", "m.facebook.com"),
+        listOf("facebook.com", "fb.watch", "fb.com", "m.facebook.com", "web.facebook.com"),
     ),
     SNAPCHAT(
         "https://www.snapchat.com/spotlight",
