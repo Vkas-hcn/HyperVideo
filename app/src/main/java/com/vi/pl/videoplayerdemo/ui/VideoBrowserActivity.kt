@@ -251,10 +251,12 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     private fun facebookFallback(resolved: String?): String {
+        val stream = recentStreamUrls.lastOrNull()?.takeIf(VideoUrlDetector::isManifestUrl)
         val fromJs = resolved?.takeUnless(VideoUrlDetector::isBlobUrl)
-            ?.takeIf(VideoUrlDetector::isFacebookCdnUrl)
-            ?.let(VideoUrlDetector::stripByteRange)
-        return fromJs ?: recentFacebookCdnUrls.lastOrNull().orEmpty()
+            ?.takeIf { VideoUrlDetector.isManifestUrl(it) || VideoUrlDetector.isFacebookCdnUrl(it) }
+            ?.let { if (VideoUrlDetector.isManifestUrl(it)) it else VideoUrlDetector.stripByteRange(it) }
+        val cdn = fromJs ?: recentFacebookCdnUrls.lastOrNull()
+        return listOfNotNull(stream, cdn).distinct().joinToString("\n")
     }
 
     private fun enqueueDownload(url: String, fallbackUrl: String = "") {

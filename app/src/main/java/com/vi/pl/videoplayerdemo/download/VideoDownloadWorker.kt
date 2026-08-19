@@ -35,30 +35,29 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             initializeResolver()
             update(job, DownloadState.DOWNLOADING, 0)
             val sourceUrl = VideoUrlDetector.facebookDownloadUrl(job.pageUrl) ?: job.pageUrl
-            val fallback = File(tempDir, "fallback.url").takeIf { it.isFile }?.readText().orEmpty()
-                .let(VideoUrlDetector::stripByteRange)
+            val fallbacks = File(tempDir, "fallback.url").takeIf { it.isFile }?.readLines().orEmpty()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .map { if (VideoUrlDetector.isManifestUrl(it)) it else VideoUrlDetector.stripByteRange(it) }
             val attempts = buildList {
                 add(sourceUrl)
                 facebookWatchFallback(sourceUrl)?.let(::add)
-                if (fallback.isNotBlank() && fallback != sourceUrl) add(fallback)
+                addAll(fallbacks)
             }.distinct()
             var lastError: Throwable? = null
             for (attempt in attempts) {
                 lastError = runCatching {
                     executeDownload(attempt, id, tempDir, job)
+                    val produced = pickOutput(tempDir) ?: error("No video file was produced")
+                    require(isPlayable(produced, job)) { "Downloaded file has no decodable video track" }
                 }.exceptionOrNull()
                 if (lastError == null) break
                 Log.w(TAG, "download attempt failed for $attempt", lastError)
             }
             if (lastError != null) throw lastError
-            val output = tempDir.listFiles()
-                ?.filter { it.isFile && !it.name.endsWith(".part") && !it.name.startsWith("cookies") }
-                ?.maxByOrNull(File::length)
-                ?: error("No video file was produced")
+            val output = pickOutput(tempDir) ?: error("No video file was produced")
             update(job, DownloadState.VALIDATING, 99)
-            require(hasVideoTrack(output) || (job.platform == VideoPlatform.FACEBOOK.name && output.length() > 200_000)) {
-                "Downloaded file has no decodable video track"
-            }
+            require(isPlayable(output, job)) { "Downloaded file has no decodable video track" }
             update(job, DownloadState.MERGING, 99)
             val uri = publish(output, output.nameWithoutExtension)
             job.mediaUri = uri.toString()
@@ -113,7 +112,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     }
 
     private fun executeDownload(url: String, id: String, tempDir: File, job: DownloadJob) {
-        val generic = VideoUrlDetector.isFacebookCdnUrl(url)
+        val generic = VideoUrlDetector.isFacebookCdnUrl(url) && !VideoUrlDetector.isManifestUrl(url)
         val request = YoutubeDLRequest(url).apply {
             addOption("--no-playlist")
             if (!generic) {
@@ -170,6 +169,28 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         dao.update(job)
         setProgressAsync(androidx.work.workDataOf("progress" to progress, "state" to state.name))
     }
+
+    private fun pickOutput(tempDir: File): File? {
+        val files = tempDir.listFiles()?.filter { file ->
+            file.isFile &&
+                !file.name.endsWith(".part") &&
+                !file.name.startsWith("cookies") &&
+                !file.name.endsWith(".url") &&
+                !file.name.endsWith(".header") &&
+                !file.name.endsWith(".json")
+        }.orEmpty()
+        val media = files.filterNot { it.name.endsWith(".m3u8", true) || isPlaylistFile(it) }
+        return media.maxByOrNull(File::length) ?: files.maxByOrNull(File::length)
+    }
+
+    private fun isPlayable(file: File, job: DownloadJob): Boolean =
+        hasVideoTrack(file) ||
+            (job.platform == VideoPlatform.FACEBOOK.name && file.length() > 200_000 && !isPlaylistFile(file))
+
+    private fun isPlaylistFile(file: File): Boolean =
+        file.length() in 1 until 512_000 && runCatching {
+            file.bufferedReader().use { it.readLine().orEmpty().startsWith("#EXTM3U") }
+        }.getOrDefault(false)
 
     private fun hasVideoTrack(file: File): Boolean {
         val retriever = MediaMetadataRetriever()

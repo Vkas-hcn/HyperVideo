@@ -11,11 +11,10 @@ object VideoUrlDetector {
     private val fileExtensions = setOf("mp4", "webm", "mov", "m4v", "3gp", "mkv")
 
     fun isManifestUrl(rawUrl: String): Boolean {
-        val uri = runCatching { URI(rawUrl) }.getOrNull() ?: return false
-        if (uri.scheme !in setOf("http", "https") || uri.host.isNullOrBlank()) return false
-        val path = uri.path.orEmpty().lowercase()
-        return path.endsWith(".m3u8") || path.endsWith(".mpd") ||
-            path.contains("manifest") || path.contains("master.m3u8")
+        val lower = rawUrl.lowercase()
+        if (isBlobUrl(rawUrl) || !(lower.startsWith("http://") || lower.startsWith("https://"))) return false
+        return lower.contains(".m3u8") || lower.contains(".mpd") ||
+            lower.contains("manifest") || lower.contains("master.m3u8")
     }
 
     fun isBlobUrl(rawUrl: String): Boolean = rawUrl.trim().startsWith("blob:", ignoreCase = true)
@@ -65,7 +64,8 @@ object VideoUrlDetector {
     }
 
     fun isFacebookCdnUrl(rawUrl: String): Boolean =
-        rawUrl.contains("fbcdn.net", ignoreCase = true) &&
+        !isManifestUrl(rawUrl) &&
+            rawUrl.contains("fbcdn.net", ignoreCase = true) &&
             (rawUrl.contains("efg=") || rawUrl.contains(".mp4", ignoreCase = true) ||
                 rawUrl.contains("video", ignoreCase = true))
 
