@@ -18,6 +18,7 @@ object VideoDownloadRepository {
     fun enqueue(
         context: Context,
         pageUrl: String,
+        sourcePageUrl: String = "",
         title: String = "Downloaded video",
         coverUrl: String = "",
         userAgent: String = "",
@@ -28,17 +29,19 @@ object VideoDownloadRepository {
     ): String {
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
+        val sourcePage = sourcePageUrl.trim()
         val job = DownloadJob(
-            id, pageUrl, VideoPlatform.fromUrl(pageUrl)?.name.orEmpty(),
+            id, pageUrl, VideoPlatform.fromUrl(sourcePage.ifBlank { pageUrl })?.name.orEmpty(),
             title.ifBlank { "Downloaded video" },
             DownloadState.QUEUED, 0, null, null, null, now, 0,
         )
         executor.execute {
             DownloadDatabase.get(context).jobs().insert(job)
             val dir = jobDir(context, id)
-            if (cookies.isNotBlank() || fallbackUrl.isNotBlank() || coverUrl.isNotBlank()) dir.mkdirs()
+            if (cookies.isNotBlank() || fallbackUrl.isNotBlank() || coverUrl.isNotBlank() || sourcePage.isNotBlank()) dir.mkdirs()
             if (cookies.isNotBlank()) File(dir, "cookies.header").writeText(cookies)
             if (fallbackUrl.isNotBlank()) File(dir, "fallback.url").writeText(fallbackUrl)
+            if (sourcePage.isNotBlank() && sourcePage != pageUrl) File(dir, "source.url").writeText(sourcePage)
             if (coverUrl.isNotBlank()) runCatching { saveCover(coverUrl, File(dir, COVER_NAME), userAgent) }
             val request = OneTimeWorkRequestBuilder<VideoDownloadWorker>()
                 .setInputData(
@@ -72,12 +75,15 @@ object VideoDownloadRepository {
     }
 
     fun cancel(context: Context, id: String) {
+        VideoDownloadWorker.abort(id)
+        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(id)
         executor.execute {
-            WorkManager.getInstance(context).cancelUniqueWork(id)
             val dao = DownloadDatabase.get(context).jobs()
             dao.find(id)?.let { job ->
-                job.state = DownloadState.CANCELLED
-                dao.update(job)
+                if (job.state != DownloadState.COMPLETED) {
+                    job.state = DownloadState.CANCELLED
+                    dao.update(job)
+                }
             }
         }
     }

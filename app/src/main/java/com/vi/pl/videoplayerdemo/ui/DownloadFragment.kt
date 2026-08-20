@@ -107,7 +107,8 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
             }
             holder.pause.setOnClickListener {
                 VideoDownloadRepository.cancel(context, item.id)
-                load()
+                item.state = DownloadState.CANCELLED
+                holder.bind(item)
             }
             holder.play.setOnClickListener { play(item) }
         }

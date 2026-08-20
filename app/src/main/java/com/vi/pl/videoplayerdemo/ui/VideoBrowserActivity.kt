@@ -327,6 +327,7 @@ class VideoBrowserActivity : AppCompatActivity() {
         VideoDownloadRepository.enqueue(
             this,
             url,
+            sourcePageUrl = page,
             title = title.ifBlank { webView.title }.orEmpty(),
             coverUrl = coverUrl,
             userAgent = userAgent,
