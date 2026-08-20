@@ -21,6 +21,7 @@ import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import java.io.File
+import java.io.FileOutputStream
 import java.io.InterruptedIOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -34,9 +35,10 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     override fun doWork(): Result {
         val id = inputData.getString(JOB_ID) ?: return Result.failure()
         val job = dao.find(id) ?: return Result.failure()
-        if (isAborted(id) || job.state == DownloadState.CANCELLED) return Result.success()
+        abortedIds.remove(id)
+        if (job.state == DownloadState.CANCELLED) return Result.success()
         Log.e(TAG, "download start title=${job.title} url=${job.pageUrl}")
-        val tempDir = File(applicationContext.cacheDir, "video-downloads/$id").apply { mkdirs() }
+        val tempDir = VideoDownloadRepository.jobDir(applicationContext, id).apply { mkdirs() }
         return try {
             runCatching { setForegroundAsync(getForegroundInfo()).get() }
             val sourcePage = File(tempDir, SOURCE_URL).takeIf { it.isFile }?.readText()?.trim()
@@ -58,7 +60,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             var lastError: Throwable? = null
             var metadataProbed = inputData.getBoolean(QUALITY_RESOLVED, false)
             for (attempt in attempts) {
-                if (isAborted(id)) throw InterruptedIOException("Download stopped")
+                if (isInterrupted(id)) throw InterruptedIOException("Download stopped")
                 Log.e(
                     TAG,
                     "download attempt url=${diagnosticUrl(attempt)} progressive=${VideoUrlDetector.isProgressiveFileUrl(attempt)} " +
@@ -72,7 +74,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                     } else {
                         ensureResolver()
                         if (!metadataProbed) {
-                            update(job, DownloadState.RESOLVING, 0)
+                            update(job, DownloadState.RESOLVING_FORMATS, 0)
                             runCatching { probeMeta(attempt, tempDir, job) }
                             metadataProbed = true
                         }
@@ -87,11 +89,11 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 if (lastError == null) break
                 Log.e(TAG, "download attempt failed: ${diagnosticUrl(attempt)}", lastError)
                 logDirectoryDiagnostics(tempDir)
-                clearOutputs(tempDir)
+                // Keep partial files; they are the persisted resume checkpoint.
             }
             if (attempts.isEmpty()) error("No downloadable video found yet")
             if (lastError != null) throw lastError
-            if (isAborted(id)) throw InterruptedIOException("Download stopped")
+            if (isInterrupted(id)) throw InterruptedIOException("Download stopped")
             val output = pickOutput(tempDir) ?: error("No video file was produced")
             update(job, DownloadState.VALIDATING, 99)
             require(isPlayable(output)) { "Downloaded file has no decodable video track" }
@@ -105,20 +107,23 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             }
             job.completedAt = System.currentTimeMillis()
             update(job, DownloadState.COMPLETED, 100)
+            // The published MediaStore copy is durable; checkpoints are no longer needed.
             tempDir.deleteRecursively()
             Result.success()
         } catch (error: Throwable) {
-            if (isAborted(id) || error is InterruptedIOException ||
+            if (isExplicitlyCancelled(id)) {
+                markCancelled(id, job)
+                Result.success()
+            } else if (isStopped || error is InterruptedIOException ||
                 error.javaClass.simpleName == "CanceledException"
             ) {
-                markCancelled(id, job)
-                tempDir.deleteRecursively()
+                markPaused(id, job, "Download paused. Tap Continue to resume.")
                 Result.success()
             } else {
                 Log.e(TAG, "download failed for ${job.pageUrl}", error)
+                if (job.state == DownloadState.RETRY_REQUIRED) return Result.failure()
                 job.failureReason = failureMessage(error)
                 update(job, DownloadState.FAILED, job.progress)
-                tempDir.deleteRecursively()
                 Result.failure()
             }
         }
@@ -126,10 +131,12 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
 
     override fun onStopped() {
         inputData.getString(JOB_ID)?.let { id ->
-            abortedIds.add(id)
             runCatching { activeConnection?.disconnect() }
             runCatching { YoutubeDL.getInstance().destroyProcessById(id) }
-            dao.find(id)?.let { markCancelled(id, it) }
+            dao.find(id)?.let { job ->
+                if (isExplicitlyCancelled(id)) markCancelled(id, job)
+                else markPaused(id, job, "Download paused. Tap Continue to resume.")
+            }
         }
         super.onStopped()
     }
@@ -176,61 +183,129 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     private fun executeDirectDownload(url: String, tempDir: File, job: DownloadJob) {
         val part = File(tempDir, DIRECT_FILE + ".part")
         val output = File(tempDir, DIRECT_FILE)
-        // ponytail: restart a failed signed-CDN request instead of resuming with a stale range token.
-        part.delete()
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15_000
-            readTimeout = 30_000
-            instanceFollowRedirects = true
-            userAgent(tempDir).takeIf { it.isNotBlank() }
-                ?.let { setRequestProperty("User-Agent", it) }
-            referer(tempDir).takeIf { it.isNotBlank() }
-                ?.let { setRequestProperty("Referer", it) }
-            File(tempDir, "cookies.header").takeIf { it.isFile }?.readText()?.takeIf { it.isNotBlank() }
-                ?.let { setRequestProperty("Cookie", it) }
+        job.resumeFilePath = part.absolutePath
+        val offset = minOf(part.length().coerceAtLeast(0L), job.downloadedBytes.takeIf { it > 0L } ?: part.length())
+        if (part.length() != offset) java.io.RandomAccessFile(part, "rw").use { it.setLength(offset) }
+        val preflight = preflight(url, tempDir)
+        val identity = mediaIdentity(preflight.finalUrl)
+        if (offset > 0L && job.resourceIdentity.isNotBlank() && job.resourceIdentity != identity) retryRequired(job, "Video resource changed. Restart download to continue.")
+        if (offset > 0L && job.etag.isNotBlank() && preflight.etag.isNotBlank() && job.etag != preflight.etag) retryRequired(job, "Video resource changed. Restart download to continue.")
+        val canResume = offset > 0L && preflight.rangeSupported
+        if (offset > 0L && !canResume) { part.delete(); job.downloadedBytes = 0L }
+        val requestOffset = if (canResume) offset else 0L
+        val connection = directConnection(preflight.finalUrl, tempDir).apply {
+            if (requestOffset > 0L) {
+                setRequestProperty("Range", "bytes=$requestOffset-")
+                job.etag.ifBlank { job.lastModified }.takeIf { it.isNotBlank() }?.let { setRequestProperty("If-Range", it) }
+            }
         }
         activeConnection = connection
         try {
             val code = connection.responseCode
+            val contentRange = connection.getHeaderField("Content-Range").orEmpty()
+            if (requestOffset > 0L) require(code == HttpURLConnection.HTTP_PARTIAL && contentRangeStart(contentRange) == requestOffset) {
+                "Server did not honor Range bytes=$requestOffset- (HTTP $code, $contentRange)"
+            }
             Log.e(
                 TAG,
-                "direct response url=${diagnosticUrl(url)} final=${diagnosticUrl(connection.url.toString())} " +
+                "direct response job=${job.id} url=${diagnosticUrl(url)} final=${diagnosticUrl(connection.url.toString())} offset=$requestOffset " +
                     "code=$code type=${connection.contentType} length=${connection.contentLengthLong} " +
-                    "range=${connection.getHeaderField("Content-Range")} encoding=${connection.contentEncoding}",
+                    "range=$contentRange etag=${connection.getHeaderField("ETag").orEmpty()} encoding=${connection.contentEncoding}",
             )
             require(code in 200..299) { "Direct download HTTP $code" }
-            val total = connection.contentLengthLong
-            var copied = 0L
+            val total = totalBytes(connection, requestOffset, preflight.totalBytes)
+            job.sourceType = "PROGRESSIVE"
+            job.resolvedMediaUrl = connection.url.toString()
+            job.resourceIdentity = identity
+            job.etag = connection.getHeaderField("ETag").orEmpty().ifBlank { preflight.etag }
+            job.lastModified = connection.getHeaderField("Last-Modified").orEmpty().ifBlank { preflight.lastModified }
+            job.contentLength = total; job.totalBytes = total; job.acceptRanges = preflight.rangeSupported || code == HttpURLConnection.HTTP_PARTIAL
+            var copied = requestOffset
             connection.inputStream.use { input ->
-                part.outputStream().use { outputStream ->
+                FileOutputStream(part, requestOffset > 0L).use { outputStream ->
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     while (true) {
-                        if (isAborted(job.id)) throw InterruptedIOException("Download stopped")
+                        if (isInterrupted(job.id)) throw InterruptedIOException("Download stopped")
                         val read = input.read(buffer)
                         if (read < 0) break
                         outputStream.write(buffer, 0, read)
                         copied += read
-                        if (total > 0L) update(job, DownloadState.DOWNLOADING, (copied * 100.0 / total).roundToInt().coerceIn(0, 99))
+                        job.downloadedBytes = copied; job.updatedAt = System.currentTimeMillis()
+                        if (total > 0L) update(job, DownloadState.DOWNLOADING, (copied * 100.0 / total).roundToInt().coerceIn(0, 99)) else dao.update(job)
                     }
+                    outputStream.fd.sync()
                 }
             }
             require(part.length() > 0L) { "Direct download returned an empty file" }
+            if (total > 0L) require(part.length() == total) { "Direct download is incomplete (${part.length()}/$total)" }
             check(part.renameTo(output)) { "Unable to finalize direct download" }
+            job.downloadedBytes = output.length(); job.resumeFilePath = output.absolutePath; job.updatedAt = System.currentTimeMillis(); dao.update(job)
         } finally {
             activeConnection = null
             connection.disconnect()
         }
     }
 
+    private data class Preflight(val finalUrl: String, val totalBytes: Long, val etag: String, val lastModified: String, val rangeSupported: Boolean)
+
+    private fun preflight(url: String, dir: File): Preflight {
+        var head: Preflight? = null
+        var connection = directConnection(url, dir).apply { requestMethod = "HEAD" }
+        try {
+            if (connection.responseCode in 200..299) {
+                head = Preflight(connection.url.toString(), connection.contentLengthLong, connection.getHeaderField("ETag").orEmpty(), connection.getHeaderField("Last-Modified").orEmpty(), false)
+            }
+        } finally { connection.disconnect() }
+        // Accept-Ranges is advisory. Verify the actual 206 response before declaring resumable.
+        connection = directConnection(head?.finalUrl ?: url, dir).apply { setRequestProperty("Range", "bytes=0-0") }
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299 && head == null) error("Direct preflight HTTP $code")
+            val range = connection.getHeaderField("Content-Range").orEmpty()
+            return Preflight(
+                connection.url.toString(),
+                totalFromContentRange(range).takeIf { it > 0L } ?: head?.totalBytes ?: connection.contentLengthLong,
+                connection.getHeaderField("ETag").orEmpty().ifBlank { head?.etag.orEmpty() },
+                connection.getHeaderField("Last-Modified").orEmpty().ifBlank { head?.lastModified.orEmpty() },
+                code == HttpURLConnection.HTTP_PARTIAL && contentRangeStart(range) == 0L,
+            )
+        } finally { connection.disconnect() }
+    }
+
+    private fun directConnection(url: String, dir: File): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
+        connectTimeout = 15_000; readTimeout = 30_000; instanceFollowRedirects = true
+        userAgent(dir).takeIf { it.isNotBlank() }?.let { setRequestProperty("User-Agent", it) }
+        referer(dir).takeIf { it.isNotBlank() }?.let { setRequestProperty("Referer", it) }
+        File(dir, "cookies.header").takeIf { it.isFile }?.readText()?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Cookie", it) }
+    }
+
+    private fun contentRangeStart(value: String): Long? = DownloadResume.contentRangeStart(value)
+    private fun totalFromContentRange(value: String): Long = DownloadResume.totalFromContentRange(value)
+    private fun totalBytes(connection: HttpURLConnection, offset: Long, fallback: Long): Long = totalFromContentRange(connection.getHeaderField("Content-Range").orEmpty()).takeIf { it > 0L } ?: connection.contentLengthLong.takeIf { it > 0L }?.plus(offset) ?: fallback
+    private fun mediaIdentity(url: String): String = DownloadResume.resourceIdentity(url)
+    private fun retryRequired(job: DownloadJob, message: String): Nothing { job.state = DownloadState.RETRY_REQUIRED; job.failureReason = message; job.updatedAt = System.currentTimeMillis(); dao.update(job); throw IllegalStateException(message) }
+
     private fun executeDownload(url: String, id: String, tempDir: File, job: DownloadJob) {
         val target = url.substringBefore('#')
         val generic = VideoUrlDetector.isProgressiveFileUrl(target)
+        job.sourceType = when {
+            target.contains(".m3u8", true) -> "HLS"
+            target.contains(".mpd", true) -> "DASH"
+            else -> "EXTRACTOR_PAGE"
+        }
+        job.manifestUrl = target.takeIf { VideoUrlDetector.isManifestUrl(it) }.orEmpty()
+        job.selectedHeight = inputData.getInt(MAX_HEIGHT, job.selectedHeight)
+        job.parseStage = "FORMATS"
+        job.updatedAt = System.currentTimeMillis()
+        dao.update(job)
         if (VideoUrlDetector.isFacebookCdnUrl(target) && VideoUrlDetector.hasByteRange(target)) {
             error("Facebook fragment is not a complete video")
         }
         val request = YoutubeDLRequest(target).apply {
             addOption("--no-playlist")
             if (!generic) {
+                // yt-dlp owns HLS/DASH assembly; its .part/.ytdl checkpoints remain in filesDir.
+                addOption("--continue")
                 addOption("--format", formatSelector(inputData.getInt(MAX_HEIGHT, 0), job.platform))
                 addOption("--merge-output-format", "mp4")
                 addOption("--concurrent-fragments", "4")
@@ -247,7 +322,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             cookiesFile(tempDir, target)?.let { addOption("--cookies", it.absolutePath) }
         }
         YoutubeDL.getInstance().execute(request, id) { progress, _, _ ->
-            if (isAborted(id)) {
+            if (isInterrupted(id)) {
                 runCatching { YoutubeDL.getInstance().destroyProcessById(id) }
             } else {
                 update(job, DownloadState.DOWNLOADING, progress.toInt().coerceIn(0, 99))
@@ -256,6 +331,9 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     }
 
     private fun probeMeta(url: String, tempDir: File, job: DownloadJob) {
+        job.parseStage = "FORMATS"
+        job.updatedAt = System.currentTimeMillis()
+        dao.update(job)
         val target = url.substringBefore('#')
         val request = YoutubeDLRequest(target).apply {
             addOption("--no-playlist")
@@ -349,11 +427,12 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         File(dir, VideoDownloadRepository.REFERER_FILE).takeIf { it.isFile }?.readText().orEmpty()
 
     private fun update(job: DownloadJob, state: DownloadState, progress: Int) {
-        if (state != DownloadState.CANCELLED && isAborted(job.id)) return
+        if (state != DownloadState.CANCELLED && isInterrupted(job.id)) return
         val current = dao.find(job.id) ?: return
         if (current.state == DownloadState.CANCELLED || current.state == DownloadState.COMPLETED) return
         job.state = state
         job.progress = progress
+        job.updatedAt = System.currentTimeMillis()
         dao.update(job)
         setProgressAsync(androidx.work.workDataOf("progress" to progress, "state" to state.name))
     }
@@ -363,10 +442,21 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         val current = dao.find(id) ?: job
         if (current.state == DownloadState.COMPLETED) return
         current.state = DownloadState.CANCELLED
+        current.updatedAt = System.currentTimeMillis()
         dao.update(current)
     }
 
-    private fun isAborted(id: String): Boolean = isStopped || id in abortedIds
+    private fun markPaused(id: String, job: DownloadJob, reason: String) {
+        val current = dao.find(id) ?: job
+        if (current.state == DownloadState.COMPLETED || current.state == DownloadState.CANCELLED) return
+        current.state = DownloadState.PAUSED
+        current.failureReason = reason
+        current.updatedAt = System.currentTimeMillis()
+        dao.update(current)
+    }
+
+    private fun isExplicitlyCancelled(id: String): Boolean = id in abortedIds
+    private fun isInterrupted(id: String): Boolean = isStopped || isExplicitlyCancelled(id)
 
     private fun pickOutput(tempDir: File): File? {
         val files = tempDir.listFiles()?.filter { file ->

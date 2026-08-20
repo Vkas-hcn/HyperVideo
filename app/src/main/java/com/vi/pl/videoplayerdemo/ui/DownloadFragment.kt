@@ -110,13 +110,17 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
                     VideoDownloadRepository.deleteFailed(context, item.id)
                     load()
                 } else {
-                    VideoDownloadRepository.cancel(context, item.id)
-                    item.state = DownloadState.CANCELLED
+                    VideoDownloadRepository.pause(context, item.id)
+                    item.state = DownloadState.PAUSED
                     holder.bind(item)
                 }
             }
             holder.play.setOnClickListener {
-                if (item.state == DownloadState.QUEUED) DownloadQualityCoordinator.resume(context, item.id) else play(item)
+                when (item.state) {
+                    DownloadState.AWAITING_QUALITY, DownloadState.QUEUED -> DownloadQualityCoordinator.resume(context, item.id)
+                    DownloadState.PAUSED, DownloadState.RETRY_REQUIRED -> VideoDownloadRepository.resume(context, item.id)
+                    else -> play(item)
+                }
             }
         }
 
@@ -159,11 +163,12 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
                     )
                     progress.visibility = View.VISIBLE
                     progress.progress = item.progress
-                    val awaitingQuality = item.state == DownloadState.QUEUED && VideoDownloadRepository.isAwaitingQuality(context, item.id)
-                    pause.visibility = if (item.state == DownloadState.FAILED || item.state in setOf(DownloadState.RESOLVING, DownloadState.DOWNLOADING, DownloadState.MERGING, DownloadState.VALIDATING)) View.VISIBLE else View.GONE
+                    val awaitingQuality = item.state in setOf(DownloadState.QUEUED, DownloadState.AWAITING_QUALITY) && VideoDownloadRepository.isAwaitingQuality(context, item.id)
+                    val resumable = item.state in setOf(DownloadState.PAUSED, DownloadState.RETRY_REQUIRED)
+                    pause.visibility = if (item.state == DownloadState.FAILED || item.state in setOf(DownloadState.PREPARING, DownloadState.RESOLVING, DownloadState.RESOLVING_PAGE, DownloadState.RESOLVING_FORMATS, DownloadState.RESOLVING_MANIFEST, DownloadState.READY, DownloadState.DOWNLOADING, DownloadState.MERGING, DownloadState.VALIDATING)) View.VISIBLE else View.GONE
                     pause.setImageResource(if (item.state == DownloadState.FAILED) R.drawable.ic_download_close else R.drawable.ic_pause_download)
-                    play.visibility = if (awaitingQuality) View.VISIBLE else View.GONE
-                    playText.text = if (item.state == DownloadState.QUEUED) "Continue" else "Play"
+                    play.visibility = if (awaitingQuality || resumable) View.VISIBLE else View.GONE
+                    playText.text = if (awaitingQuality || resumable) "Continue" else "Play"
                 }
             }
 
@@ -211,6 +216,14 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
         }
 
         private fun stateLabel(state: DownloadState): String = when (state) {
+            DownloadState.PREPARING -> "Preparing download"
+            DownloadState.AWAITING_QUALITY -> "Select quality to download"
+            DownloadState.RESOLVING_PAGE -> "Resolving page"
+            DownloadState.RESOLVING_FORMATS -> "Resolving stream"
+            DownloadState.RESOLVING_MANIFEST -> "Resolving manifest"
+            DownloadState.READY -> "Ready to download"
+            DownloadState.PAUSED -> "Download paused"
+            DownloadState.RETRY_REQUIRED -> "Video resource changed. Continue to retry"
             DownloadState.QUEUED -> "Queued"
             DownloadState.RESOLVING -> "Resolving stream"
             DownloadState.DOWNLOADING -> "Downloading"

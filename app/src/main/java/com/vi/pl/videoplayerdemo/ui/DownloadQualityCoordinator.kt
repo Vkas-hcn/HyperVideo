@@ -65,6 +65,7 @@ object DownloadQualityCoordinator : Application.ActivityLifecycleCallbacks {
         )
         VideoDownloadRepository.saveQualityMetadata(appContext, preparedJobId.orEmpty(), request.sourceHeight, request.durationSec)
         VideoDownloadRepository.setAwaitingQuality(appContext, preparedJobId.orEmpty(), false)
+        VideoDownloadRepository.markResolvingFormats(appContext, preparedJobId.orEmpty())
         resolving = resolver.submit {
             runCatching { resolveFormats(appContext, request) }
                 .onSuccess { resolved -> mainHandler.post { deliver(token, resolved, null) } }
