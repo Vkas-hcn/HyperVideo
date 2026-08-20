@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
@@ -183,6 +184,10 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     private fun downloadCurrentVideo() {
+        Toast.makeText(this, R.string.browser_quality_resolving, Toast.LENGTH_SHORT).apply {
+            setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(96))
+            show()
+        }
         webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
             val resolved = encodedUrl.takeUnless { it == "null" }?.trim('"')
                 ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
@@ -198,16 +203,23 @@ class VideoBrowserActivity : AppCompatActivity() {
                 val coverUrl = meta.substringAfter('\n', "").trim()
                 webView.evaluateJavascript(VIDEO_INFO_SCRIPT) { info ->
                     val parts = info.takeUnless { it == "null" }?.trim('"')?.split(',') ?: emptyList()
-                    val width = parts.getOrNull(0)?.toIntOrNull() ?: 0
-                    val height = parts.getOrNull(1)?.toIntOrNull() ?: 0
                     val duration = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
-                    val source = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0
-                    DownloadQualitySheet(
+                    val page = webView.url ?: url
+                    val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
+                    DownloadQualityCoordinator.resolve(
                         this,
-                        sourceHeight = source,
-                        durationSec = duration,
-                        onDownload = { maxHeight -> enqueueDownload(url, fallback, maxHeight, pageTitle, coverUrl) },
-                    ).show()
+                        QualityDownloadRequest(
+                            url = url,
+                            sourcePageUrl = page,
+                            fallbackUrl = fallback,
+                            title = pageTitle,
+                            coverUrl = coverUrl,
+                            userAgent = if (youtube) "" else webView.settings.userAgentString,
+                            cookies = cookiesFor(page),
+                            referer = if (youtube) "" else page,
+                            durationSec = duration,
+                        ),
+                    )
                 }
             }
         }

@@ -12,14 +12,14 @@ import java.util.Locale
 
 class DownloadQualitySheet(
     context: Context,
-    sourceHeight: Int,
+    options: List<Option>,
     durationSec: Double,
     private val onDownload: (Int) -> Unit,
 ) : BottomSheetDialog(context, R.style.FilterBottomSheetTheme) {
 
     data class Option(val height: Int)
 
-    private val options = optionsFor(sourceHeight)
+    private val options = options.sortedByDescending(Option::height)
     private var selected = options.first()
 
     init {
@@ -57,14 +57,6 @@ class DownloadQualitySheet(
     }
 
     companion object {
-        private val LADDER = listOf(1080, 720, 480, 360)
-
-        fun optionsFor(sourceHeight: Int): List<Option> {
-            val cap = sourceHeight.takeIf { it > 0 } ?: 1080
-            val heights = LADDER.filter { it <= cap }.take(3).ifEmpty { listOf(cap.coerceAtMost(1080)) }
-            return heights.map { Option(it) }
-        }
-
         fun estimatedSize(height: Int, durationSec: Double): String {
             val seconds = durationSec.takeIf { it.isFinite() && it in 1.0..36_000.0 } ?: 30.0
             val mbps = when {
