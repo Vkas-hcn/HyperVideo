@@ -40,4 +40,18 @@ object VideoFormat {
             else -> date.format(dateFormatter)
         }
     }
+
+    fun qualityLabel(width: Int, height: Int): String? {
+        val shortEdge = minOf(width, height)
+        return when {
+            shortEdge >= 2160 -> "4K"
+            shortEdge >= 1440 -> "2K"
+            shortEdge >= 1080 -> "1080P"
+            shortEdge >= 720 -> "720P"
+            shortEdge >= 480 -> "480P"
+            shortEdge >= 360 -> "360P"
+            shortEdge > 0 -> "${shortEdge}P"
+            else -> null
+        }
+    }
 }

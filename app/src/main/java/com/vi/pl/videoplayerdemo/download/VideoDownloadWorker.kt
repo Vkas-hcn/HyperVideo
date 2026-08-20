@@ -33,35 +33,43 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             runCatching { setForegroundAsync(getForegroundInfo()).get() }
             update(job, DownloadState.RESOLVING, 0)
             initializeResolver()
-            update(job, DownloadState.DOWNLOADING, 0)
-            val sourceUrl = VideoUrlDetector.facebookDownloadUrl(job.pageUrl) ?: job.pageUrl
+            val sourceUrl = VideoUrlDetector.facebookDownloadUrl(job.pageUrl)
+                ?: VideoUrlDetector.tiktokDownloadUrl(job.pageUrl)
+                ?: job.pageUrl
             val fallbacks = File(tempDir, "fallback.url").takeIf { it.isFile }?.readLines().orEmpty()
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
                 .map { if (VideoUrlDetector.isManifestUrl(it)) it else VideoUrlDetector.stripByteRange(it) }
             val attempts = buildList {
-                add(sourceUrl)
-                facebookWatchFallback(sourceUrl)?.let(::add)
-                addAll(fallbacks)
+                if (!VideoUrlDetector.isFeedPage(sourceUrl)) add(sourceUrl)
+                addAll(facebookWatchFallback(sourceUrl))
+                addAll(fallbacks.filterNot(VideoUrlDetector::isFeedPage))
             }.distinct()
+            attempts.firstOrNull()?.let { runCatching { probeMeta(it, tempDir, job) } }
+            update(job, DownloadState.DOWNLOADING, 0)
             var lastError: Throwable? = null
             for (attempt in attempts) {
                 lastError = runCatching {
                     executeDownload(attempt, id, tempDir, job)
                     val produced = pickOutput(tempDir) ?: error("No video file was produced")
-                    require(isPlayable(produced, job)) { "Downloaded file has no decodable video track" }
+                    require(isPlayable(produced)) { "Downloaded file has no decodable video track" }
+                    writeSize(tempDir, produced)
                 }.exceptionOrNull()
                 if (lastError == null) break
                 Log.w(TAG, "download attempt failed for $attempt", lastError)
+                clearOutputs(tempDir)
             }
+            if (attempts.isEmpty()) error("No downloadable video found yet")
             if (lastError != null) throw lastError
             val output = pickOutput(tempDir) ?: error("No video file was produced")
             update(job, DownloadState.VALIDATING, 99)
-            require(isPlayable(output, job)) { "Downloaded file has no decodable video track" }
+            require(isPlayable(output)) { "Downloaded file has no decodable video track" }
             update(job, DownloadState.MERGING, 99)
             val uri = publish(output, output.nameWithoutExtension)
             job.mediaUri = uri.toString()
-            job.title = output.nameWithoutExtension.ifBlank { job.title }
+            if (job.title.isBlank() || job.title == "Downloaded video") {
+                job.title = output.nameWithoutExtension.ifBlank { job.title }
+            }
             job.completedAt = System.currentTimeMillis()
             update(job, DownloadState.COMPLETED, 100)
             tempDir.deleteRecursively()
@@ -112,34 +120,96 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     }
 
     private fun executeDownload(url: String, id: String, tempDir: File, job: DownloadJob) {
-        val generic = VideoUrlDetector.isFacebookCdnUrl(url) && !VideoUrlDetector.isManifestUrl(url)
-        val request = YoutubeDLRequest(url).apply {
+        val target = url.substringBefore('#')
+        val generic = VideoUrlDetector.isProgressiveFileUrl(target)
+        if (VideoUrlDetector.isFacebookCdnUrl(target) && VideoUrlDetector.hasByteRange(target)) {
+            error("Facebook fragment is not a complete video")
+        }
+        val request = YoutubeDLRequest(target).apply {
             addOption("--no-playlist")
             if (!generic) {
-                addOption("--format", "bv*+ba/b")
+                addOption("--format", formatSelector(inputData.getInt(MAX_HEIGHT, 0), job.platform))
                 addOption("--merge-output-format", "mp4")
                 addOption("--concurrent-fragments", "4")
+                if (job.platform == VideoPlatform.FACEBOOK.name) addOption("--remux-video", "mp4")
             }
             addOption("--output", File(tempDir, "%(title).80s.%(ext)s").absolutePath)
+            if (!generic) addOption("--write-thumbnail")
             inputData.getString(USER_AGENT).orEmpty().takeIf { it.isNotBlank() }?.let {
                 addOption("--user-agent", it)
             }
             inputData.getString(REFERER).orEmpty().ifBlank { job.pageUrl }.takeIf { it.isNotBlank() }?.let {
                 if (job.platform != VideoPlatform.YOUTUBE.name) addOption("--referer", it)
             }
-            cookiesFile(tempDir, url)?.let { addOption("--cookies", it.absolutePath) }
+            cookiesFile(tempDir, target)?.let { addOption("--cookies", it.absolutePath) }
         }
         YoutubeDL.getInstance().execute(request, id) { progress, _, _ ->
             update(job, DownloadState.DOWNLOADING, progress.toInt().coerceIn(0, 99))
         }
     }
 
-    private fun facebookWatchFallback(url: String): String? {
+    private fun probeMeta(url: String, tempDir: File, job: DownloadJob) {
+        val target = url.substringBefore('#')
+        val request = YoutubeDLRequest(target).apply {
+            addOption("--no-playlist")
+            if (!VideoUrlDetector.isProgressiveFileUrl(target)) {
+                addOption("--format", formatSelector(inputData.getInt(MAX_HEIGHT, 0), job.platform))
+            }
+            cookiesFile(tempDir, target)?.let { addOption("--cookies", it.absolutePath) }
+        }
+        val info = YoutubeDL.getInstance().getInfo(request)
+        info.title?.trim()?.ifBlank { null }?.let {
+            job.title = it
+            dao.update(job)
+        }
+        if (info.width > 0 && info.height > 0) writeSize(tempDir, info.width, info.height)
+        info.thumbnail?.takeIf { it.startsWith("http") }?.let { thumb ->
+            runCatching {
+                java.net.URL(thumb).openStream().use { input ->
+                    File(tempDir, "cover.jpg").outputStream().use { input.copyTo(it) }
+                }
+            }
+        }
+    }
+
+    private fun writeSize(dir: File, file: File) {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(file.absolutePath)
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            if (width > 0 && height > 0) writeSize(dir, width, height)
+        } catch (_: Exception) {
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun writeSize(dir: File, width: Int, height: Int) {
+        File(dir, "size.txt").writeText("$width,$height")
+    }
+
+    private fun formatSelector(maxHeight: Int, platform: String): String {
+        if (maxHeight <= 0) {
+            return if (platform == VideoPlatform.FACEBOOK.name) "b[ext=mp4]/bv*+ba/b" else "bv*+ba/b"
+        }
+        val h = maxHeight
+        // Landscape matches height; portrait matches width. Prefer exact rung so
+        // bv*+ba cannot pick 144p when a 360p combined stream exists. No uncapped /b.
+        return "b[height<=$h][width>=$h]/bv*[height<=$h][width>=$h]+ba/" +
+            "b[width<=$h][height>=$h]/bv*[width<=$h][height>=$h]+ba/" +
+            "b[height<=$h]/bv*[height<=$h]+ba/" +
+            "b[width<=$h]/bv*[width<=$h]+ba"
+    }
+
+    private fun facebookWatchFallback(url: String): List<String> {
         val id = Regex("""/(?:reel|reels|videos)/(\d+)""").find(url)?.groupValues?.get(1)
             ?: Uri.parse(url).getQueryParameter("v")
-            ?: return null
-        val watch = "https://m.facebook.com/watch/?v=$id"
-        return watch.takeIf { it != url }
+            ?: return emptyList()
+        return listOf(
+            "https://m.facebook.com/watch/?v=$id",
+            "https://m.facebook.com/reel/$id",
+        ).filter { it != url }
     }
 
     private fun cookiesFile(dir: File, pageUrl: String): File? {
@@ -149,6 +219,8 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         val domain = when {
             host.contains("facebook") || host.contains("fbcdn") || host == "fb.com" || host.contains("fb.watch") ->
                 ".facebook.com"
+            host.contains("instagram") -> ".instagram.com"
+            host.contains("tiktok") || host.contains("muscdn") -> ".tiktok.com"
             else -> ".$host"
         }
         val file = File(dir, "cookies.txt")
@@ -175,17 +247,38 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             file.isFile &&
                 !file.name.endsWith(".part") &&
                 !file.name.startsWith("cookies") &&
-                !file.name.endsWith(".url") &&
-                !file.name.endsWith(".header") &&
-                !file.name.endsWith(".json")
+                !file.name.startsWith("cover") &&
+                file.name != "size.txt" &&
+                file.extension.lowercase() !in setOf("jpg", "jpeg", "png", "webp", "url", "header", "json")
         }.orEmpty()
-        val media = files.filterNot { it.name.endsWith(".m3u8", true) || isPlaylistFile(it) }
-        return media.maxByOrNull(File::length) ?: files.maxByOrNull(File::length)
+        return files.filterNot { it.name.endsWith(".m3u8", true) || isPlaylistFile(it) }
+            .maxByOrNull(File::length)
     }
 
-    private fun isPlayable(file: File, job: DownloadJob): Boolean =
-        hasVideoTrack(file) ||
-            (job.platform == VideoPlatform.FACEBOOK.name && file.length() > 200_000 && !isPlaylistFile(file))
+    private fun clearOutputs(tempDir: File) {
+        tempDir.listFiles()?.forEach { file ->
+            if (file.isFile &&
+                !file.name.startsWith("cookies") &&
+                !file.name.startsWith("cover") &&
+                file.name != "size.txt" &&
+                !file.name.endsWith(".url") &&
+                !file.name.endsWith(".header")
+            ) file.delete()
+        }
+    }
+
+    private fun isPlayable(file: File): Boolean {
+        if (!looksLikeMedia(file) || isPlaylistFile(file)) return false
+        return hasVideoTrack(file)
+    }
+
+    private fun looksLikeMedia(file: File): Boolean {
+        val bytes = ByteArray(12)
+        val n = runCatching { file.inputStream().use { it.read(bytes) } }.getOrDefault(0)
+        if (n < 8) return false
+        if (bytes[0] == '#'.code.toByte() || bytes[0] == '<'.code.toByte()) return false
+        return String(bytes, 4, 4, Charsets.US_ASCII) == "ftyp" || bytes[0] == 0x1A.toByte()
+    }
 
     private fun isPlaylistFile(file: File): Boolean =
         file.length() in 1 until 512_000 && runCatching {
@@ -210,8 +303,9 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, name)
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Video.Media.SIZE, file.length())
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Shorts")
+                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Shorts/")
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             }
         }
@@ -220,8 +314,16 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         try {
             resolver.openOutputStream(uri)?.use { output -> file.inputStream().use { it.copyTo(output) } }
                 ?: error("Unable to write media file")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+            val done = ContentValues().apply {
+                put(MediaStore.Video.Media.SIZE, file.length())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Video.Media.IS_PENDING, 0)
+                }
+            }
+            resolver.update(uri, done, null, null)
+            if (!isReadableUri(uri)) {
+                resolver.delete(uri, null, null)
+                error("Downloaded file has no decodable video track")
             }
             return uri
         } catch (error: Throwable) {
@@ -229,6 +331,11 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             throw error
         }
     }
+
+    private fun isReadableUri(uri: android.net.Uri): Boolean =
+        runCatching {
+            applicationContext.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length > 0L }
+        }.getOrNull() == true
 
     private fun failureMessage(error: Throwable): String {
         val raw = generateSequence(error) { it.cause }.mapNotNull { it.message }.joinToString("\n")
@@ -253,6 +360,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         const val JOB_ID = "job_id"
         const val USER_AGENT = "user_agent"
         const val REFERER = "referer"
+        const val MAX_HEIGHT = "max_height"
         private const val TAG = "VideoDownload"
         private const val CHANNEL_ID = "video_downloads"
         private const val NOTIFICATION_ID = 717

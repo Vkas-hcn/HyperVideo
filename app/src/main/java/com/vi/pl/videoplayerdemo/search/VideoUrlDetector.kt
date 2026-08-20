@@ -27,7 +27,7 @@ object VideoUrlDetector {
         if (path.endsWith(".m3u8") || path.endsWith(".mpd")) return false
         if (hasByteRange(uri)) return false
         if (fileExtensions.any { path.endsWith(".$it") } || path.contains("videoplayback")) return true
-        if (isFacebookCdnVideo(uri)) return true
+        if (isFacebookCdnVideo(uri) || isTikTokCdnUrl(rawUrl) || isInstagramCdnUrl(rawUrl)) return true
         val query = runCatching {
             URLDecoder.decode(uri.rawQuery.orEmpty(), StandardCharsets.UTF_8).lowercase()
         }.getOrDefault("")
@@ -108,6 +108,59 @@ object VideoUrlDetector {
     private val FACEBOOK_WATCH_PATH = Regex("""/(?:reel|reels|videos)/\d+|/(?:share)/(?:r|v)/[^/]+""")
     private val VIDEO_ID_IN_JSON = Regex(""""video_id"\s*:\s*"?(\d+)""")
     private val EFG_PARAM = Regex("""[?&]efg=([^&]+)""")
+    private val TIKTOK_VIDEO_PATH = Regex("""/@[^/]+/video/\d+|/(?:v|video)/\d+|/t/[^/]+""")
+    private val TIKTOK_VIDEO_ID = Regex("""/(?:video|v)/(\d{8,})""")
+
+    fun isTikTokWatchUrl(rawUrl: String): Boolean {
+        val uri = Uri.parse(rawUrl)
+        val host = uri.host.orEmpty().lowercase()
+        if (host.contains("vm.tiktok") || host.contains("vt.tiktok")) return true
+        if (!host.contains("tiktok.com")) return false
+        return TIKTOK_VIDEO_PATH.containsMatchIn(uri.path.orEmpty())
+    }
+
+    fun tiktokDownloadUrl(rawUrl: String): String? {
+        if (isTikTokWatchUrl(rawUrl)) return rawUrl
+        val id = TIKTOK_VIDEO_ID.find(rawUrl)?.groupValues?.get(1) ?: return null
+        return "https://www.tiktok.com/@tiktok/video/$id"
+    }
+
+    fun isTikTokCdnUrl(rawUrl: String): Boolean {
+        val lower = rawUrl.lowercase()
+        if (!(lower.startsWith("http://") || lower.startsWith("https://"))) return false
+        if (isManifestUrl(rawUrl) || isBlobUrl(rawUrl)) return false
+        return (lower.contains("tiktokcdn") || lower.contains("muscdn.com") ||
+            lower.contains("tiktok.com/aweme") || lower.contains("tiktok.com/video/tos")) &&
+            (lower.contains(".mp4") || lower.contains("mime_type=video") || lower.contains("/video/"))
+    }
+
+    fun isInstagramCdnUrl(rawUrl: String): Boolean {
+        val lower = rawUrl.lowercase()
+        if (!(lower.startsWith("http://") || lower.startsWith("https://"))) return false
+        if (isManifestUrl(rawUrl) || isBlobUrl(rawUrl)) return false
+        return lower.contains("cdninstagram.com") &&
+            (lower.contains(".mp4") || lower.contains("video"))
+    }
+
+    /** Progressive CDN file: download as-is. Page URLs and HLS still go through yt-dlp formats. */
+    fun isProgressiveFileUrl(rawUrl: String): Boolean =
+        !isManifestUrl(rawUrl) && !hasByteRange(rawUrl) &&
+            (isDirectVideoUrl(rawUrl) || isTikTokCdnUrl(rawUrl) || isInstagramCdnUrl(rawUrl) ||
+                isFacebookCdnUrl(rawUrl))
+
+    fun isFeedPage(rawUrl: String): Boolean = when (VideoPlatform.fromUrl(rawUrl)) {
+        VideoPlatform.TIKTOK -> !isTikTokWatchUrl(rawUrl) && !isTikTokCdnUrl(rawUrl)
+        VideoPlatform.FACEBOOK -> !isFacebookWatchUrl(rawUrl) && !isFacebookCdnUrl(rawUrl) && !isManifestUrl(rawUrl)
+        VideoPlatform.YOUTUBE -> {
+            val uri = Uri.parse(rawUrl)
+            val path = uri.path.orEmpty()
+            uri.getQueryParameter("v").isNullOrBlank() &&
+                !path.contains("/shorts/") && !path.contains("/embed/") &&
+                !path.contains("/live/") &&
+                !uri.host.orEmpty().contains("youtu.be")
+        }
+        else -> false
+    }
 
     fun isDownloadableHttpUrl(rawUrl: String): Boolean {
         val uri = Uri.parse(rawUrl)

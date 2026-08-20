@@ -26,6 +26,10 @@
     <string name="home">Home</string>
     <string name="search">Search</string>
     <string name="download">Download</string>
+    <string name="download_video">Download Video</string>
+    <string name="subscribe">Subscribe</string>
+    <string name="quality_label">%1$dP</string>
+    <string name="quality_meta">MP4 · %1$s</string>
     <string name="profile">Profile</string>
     <string name="cine">Hyper  </string>
     <string name="flow">Video</string>

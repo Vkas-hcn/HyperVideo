@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -21,7 +22,9 @@ import com.vi.pl.videoplayerdemo.download.DownloadDatabase
 import com.vi.pl.videoplayerdemo.download.DownloadJob
 import com.vi.pl.videoplayerdemo.download.DownloadState
 import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
+import com.vi.pl.videoplayerdemo.local.VideoFormat
 import com.vi.pl.videoplayerdemo.local.VideoThumbnailLoader
+import java.io.File
 import java.util.concurrent.Executors
 
 class DownloadFragment : Fragment(R.layout.fragment_download) {
@@ -116,6 +119,7 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
 
         inner class Holder(view: View) : RecyclerView.ViewHolder(view) {
             val root: LinearLayout = view.findViewById(R.id.download_item_root)
+            private val coverFrame: View = view.findViewById(R.id.download_cover_frame)
             private val thumb: ImageView = view.findViewById(R.id.download_thumb)
             private val badge: TextView = view.findViewById(R.id.download_badge)
             private val title: TextView = view.findViewById(R.id.download_item_title)
@@ -124,24 +128,68 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
             val pause: ImageView = view.findViewById(R.id.download_pause)
             val play: LinearLayout = view.findViewById(R.id.download_play)
 
+            init {
+                coverFrame.outlineProvider = ViewOutlineProvider.BACKGROUND
+                coverFrame.clipToOutline = true
+            }
+
             fun bind(item: DownloadJob) {
                 title.text = item.title
-                badge.visibility = View.GONE
+                bindCoverAndQuality(item)
                 if (item.state == DownloadState.COMPLETED) {
-                    item.mediaUri?.let { VideoThumbnailLoader.load(context, item.id.hashCode().toLong(), Uri.parse(it), thumb, { _, _ -> }) }
-                        ?: thumb.setImageResource(R.drawable.ic_default_cover)
                     subtitle.text = "Completed"
                     progress.visibility = View.GONE
                     pause.visibility = View.GONE
                     play.visibility = View.VISIBLE
                 } else {
-                    thumb.setImageResource(R.drawable.ic_default_cover)
                     subtitle.text = item.failureReason ?: stateLabel(item.state)
                     progress.visibility = View.VISIBLE
                     progress.progress = item.progress
                     pause.visibility = if (item.state in setOf(DownloadState.RESOLVING, DownloadState.DOWNLOADING, DownloadState.MERGING, DownloadState.VALIDATING)) View.VISIBLE else View.GONE
                     play.visibility = View.GONE
                 }
+            }
+
+            private fun bindCoverAndQuality(item: DownloadJob) {
+                badge.visibility = View.GONE
+                badge.setBackgroundResource(R.drawable.bg_quality_badge)
+                val mediaUri = item.mediaUri?.let(Uri::parse)
+                if (mediaUri != null) {
+                    VideoThumbnailLoader.load(
+                        context,
+                        mediaUri.lastPathSegment?.toLongOrNull() ?: mediaUri.hashCode().toLong(),
+                        mediaUri,
+                        thumb,
+                        onVideoSize = { width, height -> showQuality(width, height) },
+                    )
+                    return
+                }
+                val dir = VideoDownloadRepository.jobDir(context, item.id)
+                val cover = File(dir, "cover.jpg").takeIf { it.isFile }
+                    ?: dir.listFiles()?.filter {
+                        it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp")
+                    }?.maxByOrNull { it.lastModified() }
+                if (cover != null) {
+                    VideoThumbnailLoader.loadFile(context, item.id.hashCode().toLong(), cover, thumb)
+                } else {
+                    thumb.setImageResource(R.drawable.ic_default_cover)
+                }
+                readSize(dir)?.let { (width, height) -> showQuality(width, height) }
+            }
+
+            private fun showQuality(width: Int, height: Int) {
+                VideoFormat.qualityLabel(width, height)?.let {
+                    badge.text = it
+                    badge.visibility = View.VISIBLE
+                }
+            }
+
+            private fun readSize(dir: File): Pair<Int, Int>? {
+                val raw = File(dir, "size.txt").takeIf { it.isFile }?.readText()?.trim() ?: return null
+                val parts = raw.split(',', 'x')
+                val width = parts.getOrNull(0)?.toIntOrNull() ?: return null
+                val height = parts.getOrNull(1)?.toIntOrNull() ?: return null
+                return if (width > 0 && height > 0) width to height else null
             }
         }
 

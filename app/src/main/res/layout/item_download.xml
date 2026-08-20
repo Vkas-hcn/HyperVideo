@@ -20,6 +20,7 @@
         android:visibility="gone" />
 
     <FrameLayout
+        android:id="@+id/download_cover_frame"
         android:layout_width="76dp"
         android:layout_height="76dp"
         android:background="@drawable/bg_thumb_rounded"
@@ -44,9 +45,11 @@
             android:includeFontPadding="false"
             android:paddingHorizontal="5dp"
             android:paddingVertical="2dp"
-            android:text="4K"
             android:textColor="@color/white"
-            android:textSize="10sp" />
+            android:textSize="10sp"
+            android:visibility="gone"
+            tools:text="720P"
+            tools:visibility="visible" />
     </FrameLayout>
 
     <LinearLayout

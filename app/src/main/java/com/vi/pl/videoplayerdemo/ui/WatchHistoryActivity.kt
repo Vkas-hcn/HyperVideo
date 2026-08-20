@@ -189,7 +189,7 @@ class WatchHistoryActivity : AppCompatActivity() {
                         uri,
                         cover,
                         onVideoSize = { width, height ->
-                            quality(width, height)?.let {
+                            VideoFormat.qualityLabel(width, height)?.let {
                                 resolution.text = it
                                 resolution.visibility = View.VISIBLE
                             }
@@ -198,19 +198,6 @@ class WatchHistoryActivity : AppCompatActivity() {
                 } else {
                     cover.setImageResource(R.drawable.ic_play)
                 }
-            }
-        }
-
-        private fun quality(width: Int, height: Int): String? {
-            val shortEdge = minOf(width, height)
-            return when {
-                shortEdge >= 2160 -> "4K"
-                shortEdge >= 1440 -> "2K"
-                shortEdge >= 1080 -> "1080P"
-                shortEdge >= 720 -> "720P"
-                shortEdge >= 480 -> "480P"
-                shortEdge > 0 -> "${shortEdge}P"
-                else -> null
             }
         }
     }

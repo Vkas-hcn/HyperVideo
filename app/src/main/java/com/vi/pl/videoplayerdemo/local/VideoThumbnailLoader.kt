@@ -2,6 +2,7 @@ package com.vi.pl.videoplayerdemo.local
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -12,6 +13,7 @@ import android.util.LruCache
 import android.util.Size
 import android.widget.ImageView
 import com.vi.pl.videoplayerdemo.R
+import java.io.File
 import java.util.concurrent.Executors
 
 object VideoThumbnailLoader {
@@ -94,6 +96,31 @@ object VideoThumbnailLoader {
                 // The download may not yet contain a decodable video frame.
             } finally {
                 runCatching { retriever.release() }
+            }
+        }
+    }
+
+    fun loadFile(context: Context, key: Long, file: File, into: ImageView, sizePx: Int = 256) {
+        into.tag = key
+        cache.get(key)?.let {
+            into.setImageBitmap(it)
+            return
+        }
+        into.setImageResource(R.drawable.ic_default_cover)
+        executor.execute {
+            val bitmap = runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() ?: return@execute
+            val scaled = if (bitmap.width <= sizePx && bitmap.height <= sizePx) bitmap else {
+                val scale = sizePx.toFloat() / maxOf(bitmap.width, bitmap.height)
+                Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scale).toInt().coerceAtLeast(1),
+                    (bitmap.height * scale).toInt().coerceAtLeast(1),
+                    true,
+                )
+            }
+            cache.put(key, scaled)
+            main.post {
+                if (into.tag == key) into.setImageBitmap(scaled)
             }
         }
     }

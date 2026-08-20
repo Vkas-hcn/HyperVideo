@@ -45,7 +45,7 @@ class VideoBrowserActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var pageLoaded = false
     private var pageFailed = false
-    private var pendingDownloadUrl: String? = null
+    private var pendingDownload: PendingDownload? = null
     private val timeout: Runnable = Runnable {
         if (!pageLoaded) showError()
     }
@@ -136,7 +136,8 @@ class VideoBrowserActivity : AppCompatActivity() {
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             request.url.toString().let { url ->
                 when {
-                    VideoUrlDetector.isFacebookCdnUrl(url) || VideoUrlDetector.isDirectVideoUrl(url) ->
+                    VideoUrlDetector.isFacebookCdnUrl(url) || VideoUrlDetector.isTikTokCdnUrl(url) ||
+                        VideoUrlDetector.isDirectVideoUrl(url) ->
                         rememberVideoUrl(url)
                     VideoUrlDetector.isManifestUrl(url) -> rememberStreamUrl(url)
                 }
@@ -185,24 +186,52 @@ class VideoBrowserActivity : AppCompatActivity() {
         webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
             val resolved = encodedUrl.takeUnless { it == "null" }?.trim('"')
                 ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
-            downloadUrl(resolved, webView.url)
-                ?.let { enqueueDownload(it, facebookFallback(resolved)) }
-                ?: Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+            val url = downloadUrl(resolved, webView.url)
+            if (url == null) {
+                Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+                return@evaluateJavascript
+            }
+            val fallback = facebookFallback(resolved)
+            webView.evaluateJavascript(PAGE_META_SCRIPT) { metaEncoded ->
+                val meta = decodeJs(metaEncoded)
+                val pageTitle = meta.substringBefore('\n').ifBlank { webView.title }.orEmpty()
+                val coverUrl = meta.substringAfter('\n', "").trim()
+                webView.evaluateJavascript(VIDEO_INFO_SCRIPT) { info ->
+                    val parts = info.takeUnless { it == "null" }?.trim('"')?.split(',') ?: emptyList()
+                    val width = parts.getOrNull(0)?.toIntOrNull() ?: 0
+                    val height = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                    val duration = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+                    val source = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0
+                    DownloadQualitySheet(
+                        this,
+                        sourceHeight = source,
+                        durationSec = duration,
+                        onDownload = { maxHeight -> enqueueDownload(url, fallback, maxHeight, pageTitle, coverUrl) },
+                        onSubscribe = { startActivity(SubscriptionActivity.createIntent(this)) },
+                    ).show()
+                }
+            }
         }
     }
 
     private fun downloadUrl(resolved: String?, pageUrl: String?): String? {
         val page = pageUrl?.takeIf(VideoUrlDetector::isDownloadableHttpUrl)
         val fromJs = resolved
-            ?.takeUnless(VideoUrlDetector::isBlobUrl)
+            ?.takeUnless { it.isBlank() || VideoUrlDetector.isBlobUrl(it) }
         val sniffed = recentVideoUrls.toList().asReversed()
         val candidates = listOfNotNull(fromJs, page) + sniffed
         return when (VideoPlatform.fromUrl(page ?: fromJs.orEmpty())) {
             VideoPlatform.FACEBOOK ->
                 candidates.firstNotNullOfOrNull { VideoUrlDetector.facebookDownloadUrl(it) }
                     ?: candidates.firstOrNull { VideoUrlDetector.isDirectVideoUrl(it) }
-            VideoPlatform.YOUTUBE -> page ?: fromJs
-            else -> page ?: fromJs ?: sniffed.firstOrNull()
+            VideoPlatform.TIKTOK ->
+                candidates.firstOrNull { VideoUrlDetector.isTikTokCdnUrl(it) || VideoUrlDetector.isDirectVideoUrl(it) }
+                    ?: candidates.firstNotNullOfOrNull { VideoUrlDetector.tiktokDownloadUrl(it) }
+            VideoPlatform.INSTAGRAM ->
+                candidates.firstOrNull { VideoUrlDetector.isInstagramCdnUrl(it) || VideoUrlDetector.isDirectVideoUrl(it) }
+                    ?: candidates.firstOrNull { !VideoUrlDetector.isFeedPage(it) }
+            VideoPlatform.YOUTUBE -> page?.takeIf { !VideoUrlDetector.isFeedPage(it) } ?: fromJs
+            else -> candidates.firstOrNull { !VideoUrlDetector.isFeedPage(it) }
         }
     }
 
@@ -238,7 +267,7 @@ class VideoBrowserActivity : AppCompatActivity() {
                 setPadding(0, dp(20), 0, dp(20))
                 setOnClickListener {
                     sheet.dismiss()
-                    enqueueDownload(url, facebookFallback(url))
+                    enqueueDownload(url, facebookFallback(url), 0, webView.title.orEmpty())
                 }
             })
             if (index < urls.lastIndex) content.addView(View(this).apply {
@@ -253,13 +282,28 @@ class VideoBrowserActivity : AppCompatActivity() {
     private fun facebookFallback(resolved: String?): String {
         val stream = recentStreamUrls.lastOrNull()?.takeIf(VideoUrlDetector::isManifestUrl)
         val fromJs = resolved?.takeUnless(VideoUrlDetector::isBlobUrl)
-            ?.takeIf { VideoUrlDetector.isManifestUrl(it) || VideoUrlDetector.isFacebookCdnUrl(it) }
+            ?.takeIf {
+                VideoUrlDetector.isManifestUrl(it) || VideoUrlDetector.isFacebookCdnUrl(it) ||
+                    VideoUrlDetector.isTikTokCdnUrl(it) || VideoUrlDetector.isInstagramCdnUrl(it) ||
+                    VideoUrlDetector.isDirectVideoUrl(it)
+            }
             ?.let { if (VideoUrlDetector.isManifestUrl(it)) it else VideoUrlDetector.stripByteRange(it) }
-        val cdn = fromJs ?: recentFacebookCdnUrls.lastOrNull()
+        val cdn = fromJs
+            ?: recentFacebookCdnUrls.lastOrNull()
+            ?: recentVideoUrls.lastOrNull {
+                VideoUrlDetector.isTikTokCdnUrl(it) || VideoUrlDetector.isInstagramCdnUrl(it) ||
+                    VideoUrlDetector.isDirectVideoUrl(it)
+            }
         return listOfNotNull(stream, cdn).distinct().joinToString("\n")
     }
 
-    private fun enqueueDownload(url: String, fallbackUrl: String = "") {
+    private fun enqueueDownload(
+        url: String,
+        fallbackUrl: String = "",
+        maxHeight: Int = 0,
+        title: String = "",
+        coverUrl: String = "",
+    ) {
         if (!VideoUrlDetector.isDownloadableHttpUrl(url)) {
             Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
             return
@@ -267,11 +311,11 @@ class VideoBrowserActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
             checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         ) {
-            pendingDownloadUrl = url
+            pendingDownload = PendingDownload(url, fallbackUrl, maxHeight, title, coverUrl)
             requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), WRITE_STORAGE_REQUEST)
             return
         }
-        if (VideoPlatform.fromUrl(url) == VideoPlatform.YOUTUBE && !isYoutubeWatchUrl(url)) {
+        if (VideoUrlDetector.isFeedPage(url)) {
             Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
             return
         }
@@ -283,10 +327,13 @@ class VideoBrowserActivity : AppCompatActivity() {
         VideoDownloadRepository.enqueue(
             this,
             url,
+            title = title.ifBlank { webView.title }.orEmpty(),
+            coverUrl = coverUrl,
             userAgent = userAgent,
             cookies = cookiesFor(page),
             referer = if (youtube) "" else page,
             fallbackUrl = fallbackUrl,
+            maxHeight = maxHeight,
         )
         Toast.makeText(this, R.string.search_download_queued, Toast.LENGTH_SHORT).show()
     }
@@ -302,19 +349,15 @@ class VideoBrowserActivity : AppCompatActivity() {
                 "https://m.facebook.com",
                 "https://web.facebook.com",
             ).forEach { CookieManager.getInstance().getCookie(it)?.let(parts::add) }
+            VideoPlatform.TIKTOK -> listOf(
+                "https://www.tiktok.com",
+                "https://m.tiktok.com",
+            ).forEach { CookieManager.getInstance().getCookie(it)?.let(parts::add) }
+            VideoPlatform.INSTAGRAM ->
+                CookieManager.getInstance().getCookie("https://www.instagram.com")?.let(parts::add)
             else -> Unit
         }
         return parts.flatMap { it.split(';') }.map { it.trim() }.filter { it.contains('=') }.distinct().joinToString("; ")
-    }
-
-    private fun isYoutubeWatchUrl(url: String): Boolean {
-        val uri = android.net.Uri.parse(url)
-        val path = uri.path.orEmpty()
-        return !uri.getQueryParameter("v").isNullOrBlank() ||
-            path.contains("/shorts/") && path.trimEnd('/').substringAfterLast('/').length >= 6 ||
-            path.contains("/live/") ||
-            path.contains("/embed/") ||
-            uri.host?.contains("youtu.be") == true
     }
 
     private fun rememberStreamUrl(url: String) = runOnUiThread {
@@ -330,9 +373,9 @@ class VideoBrowserActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != WRITE_STORAGE_REQUEST) return
-        val url = pendingDownloadUrl.also { pendingDownloadUrl = null } ?: return
+        val pending = pendingDownload.also { pendingDownload = null } ?: return
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            enqueueDownload(url)
+            enqueueDownload(pending.url, pending.fallbackUrl, pending.maxHeight, pending.title, pending.coverUrl)
         } else {
             Toast.makeText(this, R.string.browser_download_failed, Toast.LENGTH_LONG).show()
         }
@@ -350,6 +393,13 @@ class VideoBrowserActivity : AppCompatActivity() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
+    private fun decodeJs(encoded: String?): String =
+        encoded.takeUnless { it == null || it == "null" }?.trim('"')
+            ?.replace("\\\\", "\\")
+            ?.replace("\\\"", "\"")
+            ?.replace("\\n", "\n")
+            .orEmpty()
+
     override fun onDestroy() {
         handler.removeCallbacks(timeout)
         webView.destroy()
@@ -360,17 +410,42 @@ class VideoBrowserActivity : AppCompatActivity() {
         private const val EXTRA_URL = "url"
         private const val PAGE_TIMEOUT_MS = 20_000L
         private const val WRITE_STORAGE_REQUEST = 701
+        private data class PendingDownload(
+            val url: String,
+            val fallbackUrl: String,
+            val maxHeight: Int,
+            val title: String = "",
+            val coverUrl: String = "",
+        )
+        private const val VIDEO_INFO_SCRIPT = """
+            (function() {
+              const videos = Array.from(document.querySelectorAll('video'));
+              const video = videos.find(function(v) { return !v.paused && v.readyState > 1; }) || videos[0];
+              if (!video) return '0,0,0';
+              return [video.videoWidth || 0, video.videoHeight || 0, Math.floor(video.duration || 0)].join(',');
+            })();
+        """
+        private const val PAGE_META_SCRIPT = """
+            (function() {
+              var t = (document.querySelector('meta[property="og:title"]') || {}).content || document.title || '';
+              var o = (document.querySelector('meta[property="og:image"]') || {}).content || '';
+              return t + '\n' + o;
+            })();
+        """
         private const val CURRENT_VIDEO_URL_SCRIPT = """
             (function() {
               function abs(u) { try { return new URL(u, location.href).href; } catch (e) { return u || ''; } }
               function pick(u) {
                 if (!u) return '';
-                var tests = [/\/reel\/\d{5,}/i,/\/reels\/\d{5,}/i,/\/share\/r\/[^\/?#]+/i,/\/share\/v\/[^\/?#]+/i,/\/videos\/\d{5,}/i,/fb\.watch\/[^\/?#]+/i];
+                var tests = [/\/reel\/\d{5,}/i,/\/reels\/\d{5,}/i,/\/share\/r\/[^\/?#]+/i,/\/share\/v\/[^\/?#]+/i,/\/videos\/\d{5,}/i,/fb\.watch\/[^\/?#]+/i,/@[^\/"' ]+\/video\/\d+/i,/\/video\/\d{8,}/i];
                 for (var i = 0; i < tests.length; i++) if (tests[i].test(u)) return abs(u).split('#')[0];
                 return '';
               }
               function fbcdn(u) {
                 return u && u.indexOf('fbcdn.net') !== -1 && (u.indexOf('efg=') !== -1 || u.indexOf('.mp4') !== -1);
+              }
+              function ttcdn(u) {
+                return u && (u.indexOf('tiktokcdn') !== -1 || u.indexOf('muscdn.com') !== -1 || u.indexOf('/video/tos/') !== -1);
               }
               var href = location.href || '';
               var canon = (document.querySelector('link[rel="canonical"]') || {}).href || '';
@@ -381,28 +456,49 @@ class VideoBrowserActivity : AppCompatActivity() {
               if (!chosen && video) {
                 var node = video;
                 for (var d = 0; d < 14 && node && !chosen; d++) {
-                  var links = node.querySelectorAll ? node.querySelectorAll('a[href*="/reel/"],a[href*="/reels/"],a[href*="/videos/"],a[href*="/share/r/"]') : [];
+                  var links = node.querySelectorAll ? node.querySelectorAll('a[href*="/reel/"],a[href*="/reels/"],a[href*="/videos/"],a[href*="/share/r/"],a[href*="/video/"]') : [];
                   for (var i = 0; i < links.length && !chosen; i++) chosen = pick(links[i].href);
                   node = node.parentElement;
+                }
+                if (!chosen) {
+                  var all = document.querySelectorAll('a[href*="/video/"],a[href*="/reel/"]');
+                  var rect = video.getBoundingClientRect();
+                  var best = '', bestDist = 1e9;
+                  for (var i = 0; i < all.length; i++) {
+                    var p = pick(all[i].href);
+                    if (!p) continue;
+                    var r = all[i].getBoundingClientRect();
+                    var dist = Math.abs(r.top - rect.top) + Math.abs(r.left - rect.left);
+                    if (dist < bestDist) { bestDist = dist; best = p; }
+                  }
+                  chosen = best;
                 }
               }
               if (!chosen) {
                 var html = document.documentElement.innerHTML || '';
-                var id = (html.match(/\/reel\/(\d{10,})/) || html.match(/"video_id"\s*:\s*"?(\d{10,})/) || [])[1];
-                if (id) chosen = 'https://www.facebook.com/reel/' + id;
+                var tt = href.indexOf('tiktok') !== -1;
+                if (tt) {
+                  var tm = html.match(/\/@[^\/"' ]+\/video\/(\d{8,})/) || html.match(/"aweme_id"\s*:\s*"(\d{15,})"/) || html.match(/"itemId"\s*:\s*"(\d{15,})"/) || html.match(/"item_id"\s*:\s*"(\d{15,})"/);
+                  if (tm) chosen = 'https://www.tiktok.com/@tiktok/video/' + tm[1];
+                } else {
+                  var id = (html.match(/\/reel\/(\d{10,})/) || html.match(/"video_id"\s*:\s*"?(\d{10,})/) || [])[1];
+                  if (id) chosen = 'https://www.facebook.com/reel/' + id;
+                }
               }
               if (!chosen) {
                 try {
                   var entries = performance.getEntriesByType('resource');
                   for (var i = entries.length - 1; i >= 0; i--) {
-                    if (fbcdn(entries[i].name)) { chosen = entries[i].name; break; }
+                    if (fbcdn(entries[i].name) || ttcdn(entries[i].name)) { chosen = entries[i].name; break; }
                   }
                 } catch (e) {}
               }
               var src = video ? (video.currentSrc || video.src || '') : '';
-              if (fbcdn(src)) return chosen && chosen.indexOf('/reel/') !== -1 ? chosen : src;
-              if (src && src.indexOf('http') === 0) return chosen || src;
-              return chosen || href;
+              if (fbcdn(src) || ttcdn(src)) {
+                return chosen && (chosen.indexOf('/reel/') !== -1 || chosen.indexOf('/video/') !== -1) ? chosen : src;
+              }
+              if (src && src.indexOf('http') === 0 && src.indexOf('blob:') !== 0) return chosen || src;
+              return chosen || '';
             })();
         """
 
