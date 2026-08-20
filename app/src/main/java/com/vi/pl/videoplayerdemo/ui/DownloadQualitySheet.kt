@@ -12,22 +12,25 @@ import java.util.Locale
 
 class DownloadQualitySheet(
     context: Context,
-    options: List<Option>,
+    availableOptions: List<Option>,
+    videoName: String,
     durationSec: Double,
     private val onDownload: (Int) -> Unit,
 ) : BottomSheetDialog(context, R.style.FilterBottomSheetTheme) {
 
     data class Option(val height: Int)
 
-    private val options = options.sortedByDescending(Option::height)
-    private var selected = options.first()
+    private val options = availableOptions.sortedByDescending(Option::height)
+        .distinctBy(Option::height).take(3)
+    private var selected = options.firstOrNull() ?: Option(360)
 
     init {
         val content = LayoutInflater.from(context).inflate(R.layout.bottom_sheet_download_quality, null)
         setContentView(content)
+        content.findViewById<TextView>(R.id.quality_video_name).text = videoName
         val container = content.findViewById<LinearLayout>(R.id.quality_options)
         val rows = mutableListOf<View>()
-        options.forEach { option ->
+        this.options.forEach { option ->
             val row = LayoutInflater.from(context).inflate(R.layout.item_download_quality, container, false)
             row.findViewById<TextView>(R.id.quality_label).text = context.getString(R.string.quality_label, option.height)
             row.findViewById<TextView>(R.id.quality_meta).text =
@@ -57,6 +60,20 @@ class DownloadQualitySheet(
     }
 
     companion object {
+        fun optionsFor(sourceHeight: Int): List<Option> {
+            val cap = sourceHeight.takeIf { it > 0 } ?: 1080
+            return listOf(1080, 720, 480, 360).filter { it <= cap }.take(3)
+                .ifEmpty { listOf(cap.coerceAtMost(1080)) }.map(::Option)
+        }
+
+        fun displayHeight(sourceHeight: Int): Int = when {
+            sourceHeight >= 1080 -> 1080
+            sourceHeight >= 720 -> 720
+            sourceHeight >= 480 -> 480
+            sourceHeight >= 360 -> 360
+            else -> sourceHeight.coerceAtLeast(1)
+        }
+
         fun estimatedSize(height: Int, durationSec: Double): String {
             val seconds = durationSec.takeIf { it.isFinite() && it in 1.0..36_000.0 } ?: 30.0
             val mbps = when {

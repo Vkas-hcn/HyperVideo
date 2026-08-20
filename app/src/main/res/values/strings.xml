@@ -102,6 +102,7 @@
     <string name="browser_download_failed">Unable to start the download</string>
     <string name="browser_quality_resolving">Start downloading...</string>
     <string name="browser_quality_failed">Unable to resolve video quality. Please try again.</string>
+    <string name="browser_quality_timeout">Video quality resolution timed out. Please try again.</string>
     <string name="browser_stream_unsupported">This stream is being resolved and will be saved as an MP4.</string>
     <string name="local_shorts_empty">No videos downloaded to Shorts yet.</string>
     <string name="link_detected_title">Link Detected</string>

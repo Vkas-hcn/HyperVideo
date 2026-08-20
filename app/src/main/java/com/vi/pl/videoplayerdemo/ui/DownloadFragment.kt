@@ -106,11 +106,18 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
                 if (item.state == DownloadState.COMPLETED) play(item)
             }
             holder.pause.setOnClickListener {
-                VideoDownloadRepository.cancel(context, item.id)
-                item.state = DownloadState.CANCELLED
-                holder.bind(item)
+                if (item.state == DownloadState.FAILED) {
+                    VideoDownloadRepository.deleteFailed(context, item.id)
+                    load()
+                } else {
+                    VideoDownloadRepository.cancel(context, item.id)
+                    item.state = DownloadState.CANCELLED
+                    holder.bind(item)
+                }
             }
-            holder.play.setOnClickListener { play(item) }
+            holder.play.setOnClickListener {
+                if (item.state == DownloadState.QUEUED) DownloadQualityCoordinator.resume(context, item.id) else play(item)
+            }
         }
 
         private fun play(item: DownloadJob) {
@@ -128,6 +135,7 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
             private val progress: ProgressBar = view.findViewById(R.id.download_progress)
             val pause: ImageView = view.findViewById(R.id.download_pause)
             val play: LinearLayout = view.findViewById(R.id.download_play)
+            private val playText: TextView = view.findViewById(R.id.download_play_text)
 
             init {
                 coverFrame.outlineProvider = ViewOutlineProvider.BACKGROUND
@@ -139,15 +147,23 @@ class DownloadFragment : Fragment(R.layout.fragment_download) {
                 bindCoverAndQuality(item)
                 if (item.state == DownloadState.COMPLETED) {
                     subtitle.text = "Completed"
+                    subtitle.setTextColor(context.getColor(R.color.download_subtitle))
                     progress.visibility = View.GONE
                     pause.visibility = View.GONE
                     play.visibility = View.VISIBLE
+                    playText.text = "Play"
                 } else {
                     subtitle.text = item.failureReason ?: stateLabel(item.state)
+                    subtitle.setTextColor(
+                        context.getColor(if (item.state == DownloadState.FAILED) android.R.color.holo_red_light else R.color.download_subtitle),
+                    )
                     progress.visibility = View.VISIBLE
                     progress.progress = item.progress
-                    pause.visibility = if (item.state in setOf(DownloadState.RESOLVING, DownloadState.DOWNLOADING, DownloadState.MERGING, DownloadState.VALIDATING)) View.VISIBLE else View.GONE
-                    play.visibility = View.GONE
+                    val awaitingQuality = item.state == DownloadState.QUEUED && VideoDownloadRepository.isAwaitingQuality(context, item.id)
+                    pause.visibility = if (item.state == DownloadState.FAILED || item.state in setOf(DownloadState.RESOLVING, DownloadState.DOWNLOADING, DownloadState.MERGING, DownloadState.VALIDATING)) View.VISIBLE else View.GONE
+                    pause.setImageResource(if (item.state == DownloadState.FAILED) R.drawable.ic_download_close else R.drawable.ic_pause_download)
+                    play.visibility = if (awaitingQuality) View.VISIBLE else View.GONE
+                    playText.text = if (item.state == DownloadState.QUEUED) "Continue" else "Play"
                 }
             }
 

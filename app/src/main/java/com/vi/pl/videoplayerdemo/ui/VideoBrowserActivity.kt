@@ -203,6 +203,8 @@ class VideoBrowserActivity : AppCompatActivity() {
                 val coverUrl = meta.substringAfter('\n', "").trim()
                 webView.evaluateJavascript(VIDEO_INFO_SCRIPT) { info ->
                     val parts = info.takeUnless { it == "null" }?.trim('"')?.split(',') ?: emptyList()
+                    val width = parts.getOrNull(0)?.toIntOrNull() ?: 0
+                    val height = parts.getOrNull(1)?.toIntOrNull() ?: 0
                     val duration = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
                     val page = webView.url ?: url
                     val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
@@ -218,6 +220,7 @@ class VideoBrowserActivity : AppCompatActivity() {
                             cookies = cookiesFor(page),
                             referer = if (youtube) "" else page,
                             durationSec = duration,
+                            sourceHeight = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0,
                         ),
                     )
                 }

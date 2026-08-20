@@ -9,6 +9,7 @@
     android:paddingBottom="24dp">
 
     <TextView
+        android:id="@+id/quality_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:fontFamily="@font/inter_bold"
@@ -16,6 +17,17 @@
         android:text="@string/download_video"
         android:textColor="@color/white"
         android:textSize="20sp" />
+
+    <TextView
+        android:id="@+id/quality_video_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:ellipsize="end"
+        android:fontFamily="@font/inter_regular"
+        android:maxLines="2"
+        android:textColor="@color/download_subtitle"
+        android:textSize="14sp" />
 
     <LinearLayout
         android:id="@+id/quality_options"

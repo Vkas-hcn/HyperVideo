@@ -35,6 +35,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         val id = inputData.getString(JOB_ID) ?: return Result.failure()
         val job = dao.find(id) ?: return Result.failure()
         if (isAborted(id) || job.state == DownloadState.CANCELLED) return Result.success()
+        Log.e(TAG, "download start title=${job.title} url=${job.pageUrl}")
         val tempDir = File(applicationContext.cacheDir, "video-downloads/$id").apply { mkdirs() }
         return try {
             runCatching { setForegroundAsync(getForegroundInfo()).get() }
@@ -55,7 +56,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 addAll(fallbacks.filterNot(VideoUrlDetector::isFeedPage))
             }.distinct()
             var lastError: Throwable? = null
-            var metadataProbed = false
+            var metadataProbed = inputData.getBoolean(QUALITY_RESOLVED, false)
             for (attempt in attempts) {
                 if (isAborted(id)) throw InterruptedIOException("Download stopped")
                 Log.e(
@@ -69,9 +70,9 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                         update(job, DownloadState.DOWNLOADING, 0)
                         executeDirectDownload(attempt, tempDir, job)
                     } else {
-                        update(job, DownloadState.RESOLVING, 0)
                         ensureResolver()
                         if (!metadataProbed) {
+                            update(job, DownloadState.RESOLVING, 0)
                             runCatching { probeMeta(attempt, tempDir, job) }
                             metadataProbed = true
                         }
@@ -181,9 +182,9 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             connectTimeout = 15_000
             readTimeout = 30_000
             instanceFollowRedirects = true
-            inputData.getString(USER_AGENT).orEmpty().takeIf { it.isNotBlank() }
+            userAgent(tempDir).takeIf { it.isNotBlank() }
                 ?.let { setRequestProperty("User-Agent", it) }
-            inputData.getString(REFERER).orEmpty().takeIf { it.isNotBlank() }
+            referer(tempDir).takeIf { it.isNotBlank() }
                 ?.let { setRequestProperty("Referer", it) }
             File(tempDir, "cookies.header").takeIf { it.isFile }?.readText()?.takeIf { it.isNotBlank() }
                 ?.let { setRequestProperty("Cookie", it) }
@@ -237,10 +238,10 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             }
             addOption("--output", File(tempDir, "%(title).80s.%(ext)s").absolutePath)
             if (!generic) addOption("--write-thumbnail")
-            inputData.getString(USER_AGENT).orEmpty().takeIf { it.isNotBlank() }?.let {
+            userAgent(tempDir).takeIf { it.isNotBlank() }?.let {
                 addOption("--user-agent", it)
             }
-            inputData.getString(REFERER).orEmpty().ifBlank { job.pageUrl }.takeIf { it.isNotBlank() }?.let {
+            referer(tempDir).ifBlank { job.pageUrl }.takeIf { it.isNotBlank() }?.let {
                 if (job.platform != VideoPlatform.YOUTUBE.name) addOption("--referer", it)
             }
             cookiesFile(tempDir, target)?.let { addOption("--cookies", it.absolutePath) }
@@ -341,6 +342,12 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         return file
     }
 
+    private fun userAgent(dir: File): String =
+        File(dir, VideoDownloadRepository.USER_AGENT_FILE).takeIf { it.isFile }?.readText().orEmpty()
+
+    private fun referer(dir: File): String =
+        File(dir, VideoDownloadRepository.REFERER_FILE).takeIf { it.isFile }?.readText().orEmpty()
+
     private fun update(job: DownloadJob, state: DownloadState, progress: Int) {
         if (state != DownloadState.CANCELLED && isAborted(job.id)) return
         val current = dao.find(job.id) ?: return
@@ -368,6 +375,9 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 !file.name.startsWith("cookies") &&
                 !file.name.startsWith("cover") &&
                 file.name != "size.txt" &&
+                file.name != VideoDownloadRepository.USER_AGENT_FILE &&
+                file.name != VideoDownloadRepository.REFERER_FILE &&
+                file.name != VideoDownloadRepository.QUALITY_META_FILE &&
                 file.extension.lowercase() !in setOf("jpg", "jpeg", "png", "webp", "url", "header", "json")
         }.orEmpty()
         return files.filterNot { it.name.endsWith(".m3u8", true) || isPlaylistFile(it) }
@@ -380,6 +390,9 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 !file.name.startsWith("cookies") &&
                 !file.name.startsWith("cover") &&
                 file.name != "size.txt" &&
+                file.name != VideoDownloadRepository.USER_AGENT_FILE &&
+                file.name != VideoDownloadRepository.REFERER_FILE &&
+                file.name != VideoDownloadRepository.QUALITY_META_FILE &&
                 !file.name.endsWith(".url") &&
                 !file.name.endsWith(".header")
             ) file.delete()
@@ -518,6 +531,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         const val USER_AGENT = "user_agent"
         const val REFERER = "referer"
         const val MAX_HEIGHT = "max_height"
+        const val QUALITY_RESOLVED = "quality_resolved"
         private const val TAG = "VideoDownload"
         private const val CHANNEL_ID = "video_downloads"
         private const val NOTIFICATION_ID = 717
