@@ -207,7 +207,6 @@ class VideoBrowserActivity : AppCompatActivity() {
                         sourceHeight = source,
                         durationSec = duration,
                         onDownload = { maxHeight -> enqueueDownload(url, fallback, maxHeight, pageTitle, coverUrl) },
-                        onSubscribe = { startActivity(SubscriptionActivity.createIntent(this)) },
                     ).show()
                 }
             }

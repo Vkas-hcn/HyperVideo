@@ -187,5 +187,4 @@
     <string name="login_google_failed">Google sign-in failed</string>
     <string name="profile_guest_name">Guest</string>
     <string name="profile_guest_meta">Tap to log in</string>
-    <string name="google_web_client_id" translatable="false">275646632040-4kfqi31l2m12eqtmo96k9nbb9p9e4sq7.apps.googleusercontent.com</string>
 </resources>
