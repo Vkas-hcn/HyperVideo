@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.vi.pl.videoplayerdemo"
+        applicationId = "com.hyperideo.hdvideoplayer"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
