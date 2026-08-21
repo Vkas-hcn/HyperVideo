@@ -98,6 +98,7 @@
     <string name="browser_no_results_message">The video does not exist. Please search again.</string>
     <string name="browser_choose_video">Choose a video to download</string>
     <string name="browser_no_video_found">No downloadable video found yet</string>
+    <string name="browser_video_not_ready">Video is still loading. Please wait until it appears on the page.</string>
     <string name="browser_download_description">Saving to the Shorts folder</string>
     <string name="browser_download_failed">Unable to start the download</string>
     <string name="browser_quality_resolving">Start downloading...</string>
@@ -128,7 +129,7 @@
     <string name="feedback_subject">Hyper Video Feedback</string>
     <string name="feedback_submitted">After submission, you will be prompted to reply within 24 hours on weekdays.</string>
     <string name="no_email_app">No email app available</string>
-    <string name="privacy_policy_url" translatable="false">https://www.cineflow.app/privacy</string>
+    <string name="privacy_policy_url" translatable="false">https://www.google.com/privacy</string>
     <string name="privacy_load_failed">Unable to load the privacy policy</string>
     <string name="retry">Retry</string>
     <string name="profile_history_empty">No watch history yet</string>

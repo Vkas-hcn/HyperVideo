@@ -108,6 +108,9 @@ class VideoBrowserActivity : AppCompatActivity() {
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             pageLoaded = false
             pageFailed = false
+            recentVideoUrls.clear()
+            recentStreamUrls.clear()
+            recentFacebookCdnUrls.clear()
             errorState.visibility = View.GONE
             handler.removeCallbacks(timeout)
             handler.postDelayed(timeout, PAGE_TIMEOUT_MS)
@@ -184,45 +187,59 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     private fun downloadCurrentVideo() {
-        Toast.makeText(this, R.string.browser_quality_resolving, Toast.LENGTH_SHORT).apply {
-            setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(96))
-            show()
+        if (!pageLoaded || pageFailed) {
+            Toast.makeText(this, R.string.browser_video_not_ready, Toast.LENGTH_SHORT).show()
+            return
         }
-        webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
-            val resolved = encodedUrl.takeUnless { it == "null" }?.trim('"')
-                ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
-            val url = downloadUrl(resolved, webView.url)
-            if (url == null) {
-                Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+        webView.evaluateJavascript(VIDEO_READY_SCRIPT) { readyEncoded ->
+            val pageHasVideo = readyEncoded == "true"
+            val sniffedMedia = recentVideoUrls.isNotEmpty() ||
+                recentFacebookCdnUrls.isNotEmpty() ||
+                recentStreamUrls.isNotEmpty()
+            if (!pageHasVideo && !sniffedMedia) {
+                Toast.makeText(this, R.string.browser_video_not_ready, Toast.LENGTH_SHORT).show()
                 return@evaluateJavascript
             }
-            val fallback = facebookFallback(resolved)
-            webView.evaluateJavascript(PAGE_META_SCRIPT) { metaEncoded ->
-                val meta = decodeJs(metaEncoded)
-                val pageTitle = meta.substringBefore('\n').ifBlank { webView.title }.orEmpty()
-                val coverUrl = meta.substringAfter('\n', "").trim()
-                webView.evaluateJavascript(VIDEO_INFO_SCRIPT) { info ->
-                    val parts = info.takeUnless { it == "null" }?.trim('"')?.split(',') ?: emptyList()
-                    val width = parts.getOrNull(0)?.toIntOrNull() ?: 0
-                    val height = parts.getOrNull(1)?.toIntOrNull() ?: 0
-                    val duration = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
-                    val page = webView.url ?: url
-                    val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
-                    DownloadQualityCoordinator.resolve(
-                        this,
-                        QualityDownloadRequest(
-                            url = url,
-                            sourcePageUrl = page,
-                            fallbackUrl = fallback,
-                            title = pageTitle,
-                            coverUrl = coverUrl,
-                            userAgent = if (youtube) "" else webView.settings.userAgentString,
-                            cookies = cookiesFor(page),
-                            referer = if (youtube) "" else page,
-                            durationSec = duration,
-                            sourceHeight = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0,
-                        ),
-                    )
+            Toast.makeText(this, R.string.browser_quality_resolving, Toast.LENGTH_SHORT).apply {
+                setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(96))
+                show()
+            }
+            webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
+                val resolved = encodedUrl.takeUnless { it == "null" }?.trim('"')
+                    ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
+                val url = downloadUrl(resolved, webView.url)
+                if (url == null) {
+                    Toast.makeText(this, R.string.browser_no_video_found, Toast.LENGTH_SHORT).show()
+                    return@evaluateJavascript
+                }
+                val fallback = facebookFallback(resolved)
+                webView.evaluateJavascript(PAGE_META_SCRIPT) { metaEncoded ->
+                    val meta = decodeJs(metaEncoded)
+                    val pageTitle = meta.substringBefore('\n').ifBlank { webView.title }.orEmpty()
+                    val coverUrl = meta.substringAfter('\n', "").trim()
+                    webView.evaluateJavascript(VIDEO_INFO_SCRIPT) { info ->
+                        val parts = info.takeUnless { it == "null" }?.trim('"')?.split(',') ?: emptyList()
+                        val width = parts.getOrNull(0)?.toIntOrNull() ?: 0
+                        val height = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                        val duration = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+                        val page = webView.url ?: url
+                        val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
+                        DownloadQualityCoordinator.resolve(
+                            this,
+                            QualityDownloadRequest(
+                                url = url,
+                                sourcePageUrl = page,
+                                fallbackUrl = fallback,
+                                title = pageTitle,
+                                coverUrl = coverUrl,
+                                userAgent = if (youtube) "" else webView.settings.userAgentString,
+                                cookies = cookiesFor(page),
+                                referer = if (youtube) "" else page,
+                                durationSec = duration,
+                                sourceHeight = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0,
+                            ),
+                        )
+                    }
                 }
             }
         }
@@ -432,6 +449,19 @@ class VideoBrowserActivity : AppCompatActivity() {
             val title: String = "",
             val coverUrl: String = "",
         )
+        private const val VIDEO_READY_SCRIPT = """
+            (function() {
+              var videos = Array.from(document.querySelectorAll('video'));
+              var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+              for (var i = 0; i < videos.length; i++) {
+                var v = videos[i];
+                var r = v.getBoundingClientRect();
+                if (r.width < 40 || r.height < 40 || r.bottom <= 0 || r.top >= vh) continue;
+                if (v.readyState >= 2 || v.videoWidth > 0) return true;
+              }
+              return false;
+            })();
+        """
         private const val VIDEO_INFO_SCRIPT = """
             (function() {
               const videos = Array.from(document.querySelectorAll('video'));

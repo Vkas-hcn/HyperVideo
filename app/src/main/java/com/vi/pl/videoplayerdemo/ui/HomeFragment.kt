@@ -11,6 +11,8 @@ import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
@@ -20,6 +22,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.local.FavoriteStore
+import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
 import com.vi.pl.videoplayerdemo.local.VideoSort
@@ -41,6 +45,29 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var shortsGridMode = false
     private var videoSort = VideoSort.DATE_NEWEST
     private var shortsSort = VideoSort.DATE_NEWEST
+    private var pendingRename: Pair<Uri, String>? = null
+    private var pendingBackground: Pair<LocalVideoItem, List<LocalVideoItem>>? = null
+
+    private val mediaRequestLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        val rename = pendingRename
+        pendingRename = null
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@registerForActivityResult
+        if (rename != null) {
+            val ok = LocalVideoActions.applyRename(requireContext(), rename.first, rename.second, rename.second)
+            if (!ok) Toast.makeText(requireContext(), R.string.rename_failed, Toast.LENGTH_SHORT).show()
+        }
+        showContent()
+    }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val request = pendingBackground
+        pendingBackground = null
+        if (granted && request != null) openVideo(request.first, request.second, background = true)
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -74,7 +101,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 FolderDetailActivity.createIntent(requireContext(), folder.path, folder.name),
             )
         }
-        videoAdapter = FolderVideoAdapter(::openVideo)
+        videoAdapter = FolderVideoAdapter(::openVideo, ::showMoreMenu)
         videoList.layoutManager = LinearLayoutManager(requireContext())
         videoList.adapter = folderAdapter
 
@@ -180,7 +207,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         emptyText.setText(if (shortsOnly) R.string.local_shorts_empty else R.string.local_video_empty)
     }
 
-    private fun openVideo(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
+    private fun openVideo(
+        item: LocalVideoItem,
+        playlist: List<LocalVideoItem>,
+        muted: Boolean = false,
+        background: Boolean = false,
+    ) {
         startActivity(
             PlayerActivity.createIntent(
                 requireContext(),
@@ -188,8 +220,78 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                 ArrayList(playlist.map { it.uri.toString() }),
                 ArrayList(playlist.map { it.title }),
                 playlist.indexOfFirst { it.id == item.id }.coerceAtLeast(0),
+                startMuted = muted,
+                playInBackground = background,
             ),
         )
+    }
+
+    private fun showMoreMenu(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
+        VideoMoreBottomSheet(requireContext(), FavoriteStore.contains(requireContext(), item.uri.toString())) { action ->
+            when (action) {
+                VideoMoreBottomSheet.Action.PLAY_BACKGROUND -> {
+                    playInBackground(item, playlist)
+                }
+                VideoMoreBottomSheet.Action.PLAY_MUTED -> openVideo(item, playlist, muted = true)
+                VideoMoreBottomSheet.Action.FAVORITE -> FavoriteStore.toggle(requireContext(), item)
+                VideoMoreBottomSheet.Action.RENAME -> showRename(item)
+                VideoMoreBottomSheet.Action.SHARE -> LocalVideoActions.share(requireContext(), item)
+                VideoMoreBottomSheet.Action.DELETE -> showDelete(item)
+            }
+        }.show()
+    }
+
+    private fun showRename(item: LocalVideoItem) {
+        AppActionDialog.rename(requireContext(), item.title) { newName ->
+            try {
+                val pending = LocalVideoActions.rename(requireContext(), item, newName)
+                if (pending != null) {
+                    pendingRename = item.uri to newName
+                    mediaRequestLauncher.launch(IntentSenderRequest.Builder(pending).build())
+                } else {
+                    showContent()
+                }
+            } catch (_: SecurityException) {
+                Toast.makeText(requireContext(), R.string.rename_failed, Toast.LENGTH_SHORT).show()
+            }
+        }.show()
+    }
+
+    private fun showDelete(item: LocalVideoItem) {
+        AppActionDialog.delete(requireContext()) {
+            try {
+                val pending = LocalVideoActions.delete(requireContext(), item)
+                if (pending != null) {
+                    pendingRename = null
+                    mediaRequestLauncher.launch(IntentSenderRequest.Builder(pending).build())
+                } else {
+                    showContent()
+                }
+            } catch (_: SecurityException) {
+                Toast.makeText(requireContext(), R.string.delete_failed, Toast.LENGTH_SHORT).show()
+            }
+        }.show()
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun playInBackground(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            openVideo(item, playlist, background = true)
+            return
+        }
+        pendingBackground = item to playlist
+        maybeRequestNotificationPermission()
     }
 
     private fun showFilter() {

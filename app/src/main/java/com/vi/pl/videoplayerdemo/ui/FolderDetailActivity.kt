@@ -38,6 +38,7 @@ class FolderDetailActivity : AppCompatActivity() {
     private var gridMode = false
     private var sort = VideoSort.DATE_NEWEST
     private var pendingRename: Pair<Uri, String>? = null
+    private var pendingBackground: Pair<LocalVideoItem, List<LocalVideoItem>>? = null
 
     private val mediaRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -54,7 +55,11 @@ class FolderDetailActivity : AppCompatActivity() {
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* playback still starts; notification may be limited without grant */ }
+    ) { granted ->
+        val request = pendingBackground
+        pendingBackground = null
+        if (granted && request != null) openPlayer(request.first, request.second, background = true)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -123,8 +128,7 @@ class FolderDetailActivity : AppCompatActivity() {
         VideoMoreBottomSheet(this, FavoriteStore.contains(this, item.uri.toString())) { action ->
             when (action) {
                 VideoMoreBottomSheet.Action.PLAY_BACKGROUND -> {
-                    maybeRequestNotificationPermission()
-                    openPlayer(item, playlist, background = true)
+                    playInBackground(item, playlist)
                 }
                 VideoMoreBottomSheet.Action.PLAY_MUTED ->
                     openPlayer(item, playlist, muted = true)
@@ -199,6 +203,18 @@ class FolderDetailActivity : AppCompatActivity() {
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
         if (!granted) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    private fun playInBackground(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            openPlayer(item, playlist, background = true)
+            return
+        }
+        pendingBackground = item to playlist
+        maybeRequestNotificationPermission()
     }
 
     companion object {

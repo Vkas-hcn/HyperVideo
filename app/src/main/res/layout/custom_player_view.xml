@@ -178,6 +178,7 @@
                     android:layout_height="wrap_content"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:gravity="center"
+                    android:visibility="gone"
                     android:orientation="vertical"
                     android:padding="8dp">
 
@@ -199,6 +200,7 @@
                 <View
                     android:layout_width="0dp"
                     android:layout_height="0dp"
+                    android:visibility="gone"
                     android:layout_weight="1" />
 
                 <LinearLayout
