@@ -1,12 +1,46 @@
-# Add project specific R8 rules here.
-# AGP will combine all keep rule files in src/main/keepRules to pass to R8
-#
-# For more details, see
-#   https://d.android.com/r/tools/r8/keep-rules
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+
+# Retrofit、Room、协程及带泛型的第三方库可能读取这些属性。即使当前接口较少，
+# 保留它们可避免后续新增 API 后 release 包出现仅混淆环境崩溃。
+-keepattributes Signature,InnerClasses,EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+-keepattributes RuntimeVisibleParameterAnnotations,RuntimeInvisibleParameterAnnotations
+-keepattributes AnnotationDefault
+
+# ---------- Room ----------
+# Room 生成代码会直接访问 Entity；保留 Entity 字段名称可兼容数据库列映射、调试工具
+# 以及未来可能增加的反射序列化。DAO 和 Database 的生成实现由 Room 自带规则处理。
+-keep @androidx.room.Entity class * { *; }
+-keep class * extends androidx.room.RoomDatabase
+
+# ---------- yt-dlp / FFmpeg / aria2c ----------
+# 这些依赖包含 JNI、Python 桥接以及由 Jackson 按名称映射的 VideoInfo/VideoFormat
+# 等模型。库的 AAR 没有携带 consumer ProGuard 规则，因此应用必须主动采用库作者
+# 给出的顶层包规则。保留 com.yausername 顶层包也可覆盖将来升级后新增的子模块。
+-keep class com.yausername.** { *; }
+
+# YoutubeDL 初始化 Python 环境时只使用 Commons Compress 的 ZIP 实现解压内置资源。
+# ExtraFieldUtils 会通过 Class/Modifier 反射注册 ZIP ExtraField 实现；R8 的类合并、
+# 抽象化或成员裁剪会让具体实现被误判为 abstract，并在静态初始化阶段崩溃。
+# 只完整保留 ZIP 包。不要保留整个 Commons Compress，否则未使用的 7z 实现也会被
+# 强制纳入产物，并要求项目额外提供可选的 org.tukaani.xz 依赖。
+-keep class org.apache.commons.compress.archivers.zip.** { *; }
+-keep interface org.apache.commons.compress.archivers.zip.** { *; }
+-keep enum org.apache.commons.compress.archivers.zip.** { *; }
+
+# 通用 JNI 保护：保留项目或依赖中声明为 native 的方法名。
+-keepclasseswithmembernames,includedescriptorclasses class * {
+    native <methods>;
+}
+
+# ---------- WebView ----------
+# 当前没有 JavascriptInterface；为后续新增 JS Bridge 保留被该注解暴露的方法。
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# ---------- 可选 TLS Provider ----------
+# OkHttp 会在运行时探测这些可选 Provider，项目未强制依赖它们。
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**

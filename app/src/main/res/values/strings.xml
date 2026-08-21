@@ -129,7 +129,7 @@
     <string name="feedback_subject">Hyper Video Feedback</string>
     <string name="feedback_submitted">After submission, you will be prompted to reply within 24 hours on weekdays.</string>
     <string name="no_email_app">No email app available</string>
-    <string name="privacy_policy_url" translatable="false">https://www.google.com/privacy</string>
+    <string name="privacy_policy_url" translatable="false">https://sites.google.com/view/hyper-video-hd-video-player/home</string>
     <string name="privacy_load_failed">Unable to load the privacy policy</string>
     <string name="retry">Retry</string>
     <string name="profile_history_empty">No watch history yet</string>
