@@ -63,6 +63,8 @@ object LocalVideoActions {
         return try {
             val deleted = context.contentResolver.delete(item.uri, null, null)
             if (deleted > 0) {
+                FavoriteStore.remove(context, listOf(item.uri.toString()))
+                WatchHistoryStore.remove(context, listOf(item.uri.toString()))
                 null
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 MediaStore.createDeleteRequest(context.contentResolver, listOf(item.uri))

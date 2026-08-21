@@ -27,6 +27,7 @@ import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
 import com.vi.pl.videoplayerdemo.local.VideoSort
+import com.vi.pl.videoplayerdemo.local.WatchHistoryStore
 
 class FolderDetailActivity : AppCompatActivity() {
     private lateinit var videoList: RecyclerView
@@ -38,6 +39,7 @@ class FolderDetailActivity : AppCompatActivity() {
     private var gridMode = false
     private var sort = VideoSort.DATE_NEWEST
     private var pendingRename: Pair<Uri, String>? = null
+    private var pendingDeleteUri: Uri? = null
     private var pendingBackground: Pair<LocalVideoItem, List<LocalVideoItem>>? = null
 
     private val mediaRequestLauncher = registerForActivityResult(
@@ -45,7 +47,16 @@ class FolderDetailActivity : AppCompatActivity() {
     ) { result ->
         val rename = pendingRename
         pendingRename = null
-        if (result.resultCode != RESULT_OK) return@registerForActivityResult
+        val deletedUri = pendingDeleteUri
+        pendingDeleteUri = null
+        if (result.resultCode != RESULT_OK) {
+            reload()
+            return@registerForActivityResult
+        }
+        deletedUri?.let {
+            FavoriteStore.remove(this, listOf(it.toString()))
+            WatchHistoryStore.remove(this, listOf(it.toString()))
+        }
         if (rename != null) {
             val ok = LocalVideoActions.applyRename(this, rename.first, rename.second, rename.second)
             if (!ok) Toast.makeText(this, R.string.rename_failed, Toast.LENGTH_SHORT).show()
@@ -145,6 +156,7 @@ class FolderDetailActivity : AppCompatActivity() {
             try {
                 val pending = LocalVideoActions.rename(this, item, newName)
                 if (pending != null) {
+                    pendingDeleteUri = null
                     pendingRename = item.uri to newName
                     mediaRequestLauncher.launch(
                         IntentSenderRequest.Builder(pending).build(),
@@ -163,7 +175,7 @@ class FolderDetailActivity : AppCompatActivity() {
             try {
                 val pending = LocalVideoActions.delete(this, item)
                 if (pending != null) {
-                    pendingRename = null
+                    pendingDeleteUri = item.uri
                     mediaRequestLauncher.launch(
                         IntentSenderRequest.Builder(pending).build(),
                     )

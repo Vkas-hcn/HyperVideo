@@ -37,6 +37,8 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         val job = dao.find(id) ?: return Result.failure()
         abortedIds.remove(id)
         if (job.state == DownloadState.CANCELLED) return Result.success()
+        job.failureReason = null
+        dao.update(job)
         Log.e(TAG, "download start title=${job.title} url=${job.pageUrl}")
         val tempDir = VideoDownloadRepository.jobDir(applicationContext, id).apply { mkdirs() }
         return try {
@@ -53,7 +55,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             val attempts = buildList {
                 if (!VideoUrlDetector.isFeedPage(job.pageUrl)) add(job.pageUrl)
                 if (sourceUrl != job.pageUrl && !VideoUrlDetector.isFeedPage(sourceUrl)) add(sourceUrl)
-                addAll(facebookWatchFallback(sourceUrl))
+                addAll(VideoUrlDetector.facebookWatchFallbackUrls(sourceUrl))
                 sourcePage?.takeIf { !VideoUrlDetector.isFeedPage(it) }?.let(::add)
                 addAll(fallbacks.filterNot(VideoUrlDetector::isFeedPage))
             }.distinct()
@@ -114,9 +116,17 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             if (isExplicitlyCancelled(id)) {
                 markCancelled(id, job)
                 Result.success()
-            } else if (isStopped || error is InterruptedIOException ||
-                error.javaClass.simpleName == "CanceledException"
-            ) {
+            } else if (isStopped || error.javaClass.simpleName == "CanceledException") {
+                markPaused(id, job, "Download paused. Tap Continue to resume.")
+                Result.success()
+            } else if (isRetryableNetworkError(error) && runAttemptCount < MAX_NETWORK_RETRIES) {
+                job.state = DownloadState.READY
+                job.failureReason = "Connection interrupted. Retrying…"
+                job.updatedAt = System.currentTimeMillis()
+                dao.update(job)
+                Log.w(TAG, "network interruption; resuming from ${job.downloadedBytes} bytes", error)
+                Result.retry()
+            } else if (error is InterruptedIOException) {
                 markPaused(id, job, "Download paused. Tap Continue to resume.")
                 Result.success()
             } else {
@@ -387,16 +397,6 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
             "b[width<=$h]/bv*[width<=$h]+ba"
     }
 
-    private fun facebookWatchFallback(url: String): List<String> {
-        val id = Regex("""/(?:reel|reels|videos)/(\d+)""").find(url)?.groupValues?.get(1)
-            ?: Uri.parse(url).getQueryParameter("v")
-            ?: return emptyList()
-        return listOf(
-            "https://m.facebook.com/watch/?v=$id",
-            "https://m.facebook.com/reel/$id",
-        ).filter { it != url }
-    }
-
     private fun cookiesFile(dir: File, pageUrl: String): File? {
         val header = File(dir, "cookies.header").takeIf { it.isFile }?.readText().orEmpty()
         if (header.isBlank()) return null
@@ -457,6 +457,8 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
 
     private fun isExplicitlyCancelled(id: String): Boolean = id in abortedIds
     private fun isInterrupted(id: String): Boolean = isStopped || isExplicitlyCancelled(id)
+    private fun isRetryableNetworkError(error: Throwable): Boolean =
+        generateSequence(error) { it.cause }.any { it is java.net.SocketException }
 
     private fun pickOutput(tempDir: File): File? {
         val files = tempDir.listFiles()?.filter { file ->
@@ -630,6 +632,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         private const val RESOLVER_PREFS = "video_resolver"
         private const val RESOLVER_UPDATED_AT = "yt_dlp_updated_at"
         private const val RESOLVER_UPDATE_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        private const val MAX_NETWORK_RETRIES = 3
         private val RESOLVER_UPDATE_LOCK = Any()
         private val abortedIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 

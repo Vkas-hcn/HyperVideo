@@ -55,6 +55,17 @@ object VideoUrlDetector {
         else -> facebookReelUrlFromCdn(rawUrl)
     }
 
+    /** Alternate Facebook permalinks for extractors that cannot resolve the original route. */
+    fun facebookWatchFallbackUrls(rawUrl: String): List<String> {
+        val id = Regex("""/(?:reel|reels|videos)/(\d+)""").find(rawUrl)?.groupValues?.get(1)
+            ?: Uri.parse(rawUrl).getQueryParameter("v")
+            ?: return emptyList()
+        return listOf(
+            "https://m.facebook.com/watch/?v=$id",
+            "https://m.facebook.com/reel/$id",
+        ).filter { it != rawUrl }
+    }
+
     fun facebookReelUrlFromCdn(rawUrl: String): String? {
         if (!rawUrl.contains("fbcdn.net", ignoreCase = true)) return null
         val efg = EFG_PARAM.find(rawUrl)?.groupValues?.get(1) ?: return null
@@ -64,10 +75,12 @@ object VideoUrlDetector {
     }
 
     fun isFacebookCdnUrl(rawUrl: String): Boolean =
-        !isManifestUrl(rawUrl) &&
-            rawUrl.contains("fbcdn.net", ignoreCase = true) &&
-            (rawUrl.contains("efg=") || rawUrl.contains(".mp4", ignoreCase = true) ||
-                rawUrl.contains("video", ignoreCase = true))
+        !isManifestUrl(rawUrl) && runCatching { URI(rawUrl) }.getOrNull()?.let { uri ->
+            val path = uri.path.orEmpty().lowercase()
+            uri.host.orEmpty().endsWith("fbcdn.net", ignoreCase = true) &&
+                !imageExtensions.any { path.endsWith(".$it") } &&
+                (isFacebookCdnVideo(uri) || path.endsWith(".mp4") || path.contains("video"))
+        } == true
 
     fun stripByteRange(rawUrl: String): String {
         val uri = Uri.parse(rawUrl)
@@ -108,6 +121,7 @@ object VideoUrlDetector {
     private val FACEBOOK_WATCH_PATH = Regex("""/(?:reel|reels|videos)/\d+|/(?:share)/(?:r|v)/[^/]+""")
     private val VIDEO_ID_IN_JSON = Regex(""""video_id"\s*:\s*"?(\d+)""")
     private val EFG_PARAM = Regex("""[?&]efg=([^&]+)""")
+    private val imageExtensions = setOf("jpg", "jpeg", "png", "webp", "gif", "avif")
     private val TIKTOK_VIDEO_PATH = Regex("""/@[^/]+/video/\d+|/(?:v|video)/\d+|/t/[^/]+""")
     private val TIKTOK_VIDEO_ID = Regex("""/(?:video|v)/(\d{8,})""")
 

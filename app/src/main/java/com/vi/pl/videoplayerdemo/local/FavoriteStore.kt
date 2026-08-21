@@ -2,6 +2,7 @@ package com.vi.pl.videoplayerdemo.local
 
 import android.content.Context
 import android.net.Uri
+import android.provider.MediaStore
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -27,9 +28,14 @@ object FavoriteStore {
     }
 
     fun contains(context: Context, videoId: String): Boolean =
-        load(context).any { it.videoId == videoId }
+        all(context).any { it.videoId == videoId }
 
-    fun all(context: Context): List<FavoriteItem> = load(context)
+    fun all(context: Context): List<FavoriteItem> {
+        val items = load(context)
+        val available = items.filter { it.uri == null || isAvailable(context, it.uri) }
+        if (available.size != items.size) save(context, available)
+        return available
+    }
 
     fun remove(context: Context, videoIds: Collection<String>) {
         if (videoIds.isEmpty()) return
@@ -97,6 +103,12 @@ object FavoriteStore {
             .putString(KEY_ITEMS, array.toString())
             .apply()
     }
+
+    private fun isAvailable(context: Context, uri: Uri): Boolean = runCatching {
+        context.contentResolver.query(uri, arrayOf(MediaStore.Video.Media._ID), null, null, null)?.use {
+            it.moveToFirst()
+        } ?: true
+    }.getOrDefault(true)
 
     private const val PREFS = "favorites"
     private const val KEY_ITEMS = "items"

@@ -27,6 +27,7 @@ import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
 import com.vi.pl.videoplayerdemo.local.VideoSort
+import com.vi.pl.videoplayerdemo.local.WatchHistoryStore
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
     private lateinit var folderAdapter: FolderListAdapter
@@ -46,6 +47,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var videoSort = VideoSort.DATE_NEWEST
     private var shortsSort = VideoSort.DATE_NEWEST
     private var pendingRename: Pair<Uri, String>? = null
+    private var pendingDeleteUri: Uri? = null
     private var pendingBackground: Pair<LocalVideoItem, List<LocalVideoItem>>? = null
 
     private val mediaRequestLauncher = registerForActivityResult(
@@ -53,7 +55,16 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     ) { result ->
         val rename = pendingRename
         pendingRename = null
-        if (result.resultCode != android.app.Activity.RESULT_OK) return@registerForActivityResult
+        val deletedUri = pendingDeleteUri
+        pendingDeleteUri = null
+        if (result.resultCode != android.app.Activity.RESULT_OK) {
+            showContent()
+            return@registerForActivityResult
+        }
+        deletedUri?.let {
+            FavoriteStore.remove(requireContext(), listOf(it.toString()))
+            WatchHistoryStore.remove(requireContext(), listOf(it.toString()))
+        }
         if (rename != null) {
             val ok = LocalVideoActions.applyRename(requireContext(), rename.first, rename.second, rename.second)
             if (!ok) Toast.makeText(requireContext(), R.string.rename_failed, Toast.LENGTH_SHORT).show()
@@ -246,6 +257,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             try {
                 val pending = LocalVideoActions.rename(requireContext(), item, newName)
                 if (pending != null) {
+                    pendingDeleteUri = null
                     pendingRename = item.uri to newName
                     mediaRequestLauncher.launch(IntentSenderRequest.Builder(pending).build())
                 } else {
@@ -262,7 +274,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             try {
                 val pending = LocalVideoActions.delete(requireContext(), item)
                 if (pending != null) {
-                    pendingRename = null
+                    pendingDeleteUri = item.uri
                     mediaRequestLauncher.launch(IntentSenderRequest.Builder(pending).build())
                 } else {
                     showContent()

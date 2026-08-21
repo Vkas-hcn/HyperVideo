@@ -173,8 +173,13 @@ object DownloadQualityCoordinator : Application.ActivityLifecycleCallbacks {
         try {
             val candidates = buildList {
                 add(request.url)
+                addAll(VideoUrlDetector.facebookWatchFallbackUrls(request.url))
                 if (request.sourcePageUrl != request.url) add(request.sourcePageUrl)
-                addAll(request.fallbackUrl.lineSequence().map(String::trim).filter(String::isNotBlank))
+                addAll(VideoUrlDetector.facebookWatchFallbackUrls(request.sourcePageUrl))
+                request.fallbackUrl.lineSequence().map(String::trim).filter(String::isNotBlank).forEach { fallback ->
+                    add(fallback)
+                    addAll(VideoUrlDetector.facebookWatchFallbackUrls(fallback))
+                }
             }.filterNot(VideoUrlDetector::isFeedPage).distinct()
             for (url in candidates) {
                 Log.e(TAG, "quality candidate url=$url title=${request.title}")

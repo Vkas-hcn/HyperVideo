@@ -250,11 +250,12 @@ class VideoBrowserActivity : AppCompatActivity() {
         val fromJs = resolved
             ?.takeUnless { it.isBlank() || VideoUrlDetector.isBlobUrl(it) }
         val sniffed = recentVideoUrls.toList().asReversed()
-        val candidates = listOfNotNull(fromJs, page) + sniffed
+        val sniffedFacebook = recentFacebookCdnUrls.toList().asReversed()
+        val candidates = listOfNotNull(fromJs) + sniffedFacebook + listOfNotNull(page) + sniffed
         return when (VideoPlatform.fromUrl(page ?: fromJs.orEmpty())) {
             VideoPlatform.FACEBOOK ->
-                candidates.firstNotNullOfOrNull { VideoUrlDetector.facebookDownloadUrl(it) }
-                    ?: candidates.firstOrNull { VideoUrlDetector.isDirectVideoUrl(it) }
+                candidates.firstOrNull(VideoUrlDetector::isProgressiveFileUrl)
+                    ?: candidates.firstNotNullOfOrNull { VideoUrlDetector.facebookDownloadUrl(it) }
             VideoPlatform.TIKTOK ->
                 candidates.firstOrNull { VideoUrlDetector.isTikTokCdnUrl(it) || VideoUrlDetector.isDirectVideoUrl(it) }
                     ?: candidates.firstNotNullOfOrNull { VideoUrlDetector.tiktokDownloadUrl(it) }
@@ -540,7 +541,8 @@ class VideoBrowserActivity : AppCompatActivity() {
               }
               var src = video ? (video.currentSrc || video.src || '') : '';
               if (fbcdn(src) || ttcdn(src)) {
-                return chosen && (chosen.indexOf('/reel/') !== -1 || chosen.indexOf('/video/') !== -1) ? chosen : src;
+                if (!/[?&](?:bytestart|byteend|bytes)=/i.test(src)) return src;
+                return chosen || src;
               }
               if (src && src.indexOf('http') === 0 && src.indexOf('blob:') !== 0) return chosen || src;
               return chosen || '';

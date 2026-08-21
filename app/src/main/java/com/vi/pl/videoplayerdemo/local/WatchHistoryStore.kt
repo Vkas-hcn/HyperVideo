@@ -2,6 +2,7 @@ package com.vi.pl.videoplayerdemo.local
 
 import android.content.Context
 import android.net.Uri
+import android.provider.MediaStore
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -26,7 +27,7 @@ object WatchHistoryStore {
         durationMs: Long,
     ) {
         if (uri.isBlank()) return
-        val items = load(context).toMutableList()
+        val items = all(context).toMutableList()
         val previous = items.find { it.videoId == uri }
         items.removeAll { it.videoId == uri }
         val duration = durationMs.takeIf { it > 0 } ?: previous?.durationMs ?: 0L
@@ -46,7 +47,12 @@ object WatchHistoryStore {
         save(context, items.take(MAX_ITEMS))
     }
 
-    fun all(context: Context): List<WatchHistoryItem> = load(context)
+    fun all(context: Context): List<WatchHistoryItem> {
+        val items = load(context)
+        val available = items.filter { it.uri == null || isAvailable(context, it.uri) }
+        if (available.size != items.size) save(context, available)
+        return available
+    }
 
     fun remove(context: Context, videoIds: Collection<String>) {
         if (videoIds.isEmpty()) return
@@ -102,6 +108,12 @@ object WatchHistoryStore {
             .putString(KEY_ITEMS, array.toString())
             .apply()
     }
+
+    private fun isAvailable(context: Context, uri: Uri): Boolean = runCatching {
+        context.contentResolver.query(uri, arrayOf(MediaStore.Video.Media._ID), null, null, null)?.use {
+            it.moveToFirst()
+        } ?: true
+    }.getOrDefault(true)
 
     private fun progressOf(positionMs: Long, durationMs: Long): Int {
         if (durationMs <= 0L) return 0
