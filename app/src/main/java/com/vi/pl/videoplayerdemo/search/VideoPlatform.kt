@@ -23,6 +23,14 @@ enum class VideoPlatform(
         "https://www.youtube.com/shorts",
         listOf("youtube.com", "youtu.be", "m.youtube.com"),
     ),
+    GOOGLE(
+        "https://www.google.com",
+        listOf("google.com"),
+    ),
+    REDDIT(
+        "https://www.reddit.com",
+        listOf("reddit.com"),
+    ),
     FACEBOOK(
         "https://www.facebook.com/reel/",
         listOf("facebook.com", "fb.watch", "fb.com", "m.facebook.com", "web.facebook.com"),

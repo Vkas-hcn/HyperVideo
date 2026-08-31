@@ -102,26 +102,26 @@
             android:src="@drawable/ic_tiktok" />
 
         <ImageView
-            android:id="@+id/platform_instagram"
+            android:id="@+id/platform_google"
             android:layout_width="0dp"
             android:layout_height="64dp"
             android:layout_weight="1"
             android:adjustViewBounds="true"
-            android:contentDescription="@string/platform_instagram"
+            android:contentDescription="@string/platform_google"
             android:paddingHorizontal="6dp"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_instagram" />
+            android:src="@drawable/ic_google_logo" />
 
         <ImageView
-            android:id="@+id/platform_youtube"
+            android:id="@+id/platform_reddit"
             android:layout_width="0dp"
             android:layout_height="64dp"
             android:layout_weight="1"
             android:adjustViewBounds="true"
-            android:contentDescription="@string/platform_youtube"
+            android:contentDescription="@string/platform_reddit"
             android:paddingHorizontal="6dp"
             android:scaleType="fitCenter"
-            android:src="@drawable/ic_youtobe" />
+            android:src="@drawable/ic_reddit_logo" />
 
         <ImageView
             android:id="@+id/platform_facebook"

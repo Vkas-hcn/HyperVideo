@@ -62,11 +62,11 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
         view.findViewById<View>(R.id.platform_tiktok).setOnClickListener {
             openPlatformSite(VideoPlatform.TIKTOK)
         }
-        view.findViewById<View>(R.id.platform_instagram).setOnClickListener {
-            openPlatformSite(VideoPlatform.INSTAGRAM)
+        view.findViewById<View>(R.id.platform_google).setOnClickListener {
+            openPlatformSite(VideoPlatform.GOOGLE)
         }
-        view.findViewById<View>(R.id.platform_youtube).setOnClickListener {
-            openPlatformSite(VideoPlatform.YOUTUBE)
+        view.findViewById<View>(R.id.platform_reddit).setOnClickListener {
+            openPlatformSite(VideoPlatform.REDDIT)
         }
         view.findViewById<View>(R.id.platform_facebook).setOnClickListener {
             openPlatformSite(VideoPlatform.FACEBOOK)
