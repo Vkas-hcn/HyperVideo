@@ -29,7 +29,7 @@ object VideoUrlDetector {
         if (fileExtensions.any { path.endsWith(".$it") } || path.contains("videoplayback")) return true
         if (isFacebookCdnVideo(uri) || isTikTokCdnUrl(rawUrl) || isInstagramCdnUrl(rawUrl)) return true
         val query = runCatching {
-            URLDecoder.decode(uri.rawQuery.orEmpty(), StandardCharsets.UTF_8).lowercase()
+            URLDecoder.decode(uri.rawQuery.orEmpty(), "UTF-8").lowercase()
         }.getOrDefault("")
         return query.contains("mime=video") || query.contains("mime_type=video") ||
             query.contains("content-type=video") || query.contains("content_type=video")
@@ -94,7 +94,7 @@ object VideoUrlDetector {
     }
 
     private fun decodeEfg(value: String): String? {
-        val raw = URLDecoder.decode(value, StandardCharsets.UTF_8)
+        val raw = URLDecoder.decode(value, "UTF-8")
             .replace('-', '+')
             .replace('_', '/')
         val padded = raw + "=".repeat((4 - raw.length % 4) % 4)
