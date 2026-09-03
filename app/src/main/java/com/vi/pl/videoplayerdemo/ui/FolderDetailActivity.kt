@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.download.DownloadBarLauncher
 import com.vi.pl.videoplayerdemo.local.FavoriteStore
 import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoItem
@@ -69,6 +70,7 @@ class FolderDetailActivity : AppCompatActivity() {
     ) { granted ->
         val request = pendingBackground
         pendingBackground = null
+        if (granted) DownloadBarLauncher.ensureRunning(this)
         if (granted && request != null) openPlayer(request.first, request.second, background = true)
     }
 

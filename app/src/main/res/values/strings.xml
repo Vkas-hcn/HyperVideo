@@ -191,4 +191,14 @@
     <string name="login_google_failed">Google sign-in failed</string>
     <string name="profile_guest_name">Guest</string>
     <string name="profile_guest_meta">Tap to log in</string>
+    <string name="notification_channel_news">Hyper Video updates</string>
+    <string name="notification_channel_news_silent">Hyper Video silent updates</string>
+    <string name="notice_placeholder_title">New videos are waiting</string>
+    <string name="notice_placeholder_action">Open</string>
+    <string name="notice_placeholder_summary">Open Hyper Video to continue watching and downloading.</string>
+    <string name="download_notification_title">Downloading video</string>
+    <string name="download_notification_progress">%1$d%%</string>
+    <string name="download_bar_channel">Downloads</string>
+    <string name="download_bar_idle">Ready to download</string>
+    <string name="download_fgs_special_use_subtype" translatable="false">Persistent download status bar</string>
 </resources>

@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.download.DownloadBarLauncher
 import com.vi.pl.videoplayerdemo.local.FavoriteStore
 import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
@@ -77,6 +78,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     ) { granted ->
         val request = pendingBackground
         pendingBackground = null
+        if (granted) DownloadBarLauncher.ensureRunning(requireContext())
         if (granted && request != null) openVideo(request.first, request.second, background = true)
     }
 

@@ -1,16 +1,15 @@
 package com.vi.pl.videoplayerdemo.download
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
-import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.work.ForegroundInfo
 import androidx.work.Worker
 import androidx.work.WorkerParameters
@@ -31,6 +30,11 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     private val dao = DownloadDatabase.get(context).jobs()
     private var resolverInitialized = false
     @Volatile private var activeConnection: HttpURLConnection? = null
+    @Volatile private var notifyTitle = ""
+    @Volatile private var notifyProgress = 0
+    @Volatile private var notifyIndeterminate = true
+    @Volatile private var lastNotifyAt = 0L
+    @Volatile private var lastNotifiedProgress = -1
 
     override fun doWork(): Result {
         val id = inputData.getString(JOB_ID) ?: return Result.failure()
@@ -42,6 +46,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         Log.e(TAG, "download start title=${job.title} url=${job.pageUrl}")
         val tempDir = VideoDownloadRepository.jobDir(applicationContext, id).apply { mkdirs() }
         return try {
+            DownloadBarService.updateProgress(applicationContext, job.title, job.progress, job.state)
             runCatching { setForegroundAsync(getForegroundInfo()).get() }
             val sourcePage = File(tempDir, SOURCE_URL).takeIf { it.isFile }?.readText()?.trim()
                 ?.takeIf { it.isNotBlank() }
@@ -136,6 +141,8 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 update(job, DownloadState.FAILED, job.progress)
                 Result.failure()
             }
+        } finally {
+            DownloadBarService.restoreIdle(applicationContext)
         }
     }
 
@@ -148,25 +155,17 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 else markPaused(id, job, "Download paused. Tap Continue to resume.")
             }
         }
+        DownloadBarService.restoreIdle(applicationContext)
         super.onStopped()
     }
 
     override fun getForegroundInfo(): ForegroundInfo {
-        val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Video downloads", NotificationManager.IMPORTANCE_LOW),
-            )
-        }
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_download_btn)
-            .setContentTitle("Downloading video")
-            .setOngoing(true)
-            .build()
+        NotificationManagerCompat.from(applicationContext).cancel(LEGACY_WORKER_NOTIFICATION_ID)
+        val notification = DownloadBarService.createNotification(applicationContext)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            ForegroundInfo(DownloadBarService.NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            ForegroundInfo(NOTIFICATION_ID, notification)
+            ForegroundInfo(DownloadBarService.NOTIFICATION_ID, notification)
         }
     }
 
@@ -435,6 +434,22 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         job.updatedAt = System.currentTimeMillis()
         dao.update(job)
         setProgressAsync(androidx.work.workDataOf("progress" to progress, "state" to state.name))
+        publishDownloadNotification(job.title, progress, state)
+    }
+
+    private fun publishDownloadNotification(title: String, progress: Int, state: DownloadState) {
+        notifyTitle = title.ifBlank { applicationContext.getString(R.string.download_notification_title) }
+        notifyProgress = progress.coerceIn(0, 100)
+        notifyIndeterminate = state != DownloadState.DOWNLOADING && state != DownloadState.COMPLETED
+        DownloadBarService.updateProgress(applicationContext, notifyTitle, notifyProgress, state)
+        val now = SystemClock.elapsedRealtime()
+        val terminal = state == DownloadState.COMPLETED || state == DownloadState.FAILED ||
+            state == DownloadState.CANCELLED || state == DownloadState.PAUSED
+        if (!terminal && progress == lastNotifiedProgress && now - lastNotifyAt < 400L) return
+        if (!terminal && now - lastNotifyAt < 200L) return
+        lastNotifiedProgress = progress
+        lastNotifyAt = now
+        runCatching { setForegroundAsync(getForegroundInfo()) }
     }
 
     private fun markCancelled(id: String, job: DownloadJob) {
@@ -625,8 +640,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         const val MAX_HEIGHT = "max_height"
         const val QUALITY_RESOLVED = "quality_resolved"
         private const val TAG = "VideoDownload"
-        private const val CHANNEL_ID = "video_downloads"
-        private const val NOTIFICATION_ID = 717
+        private const val LEGACY_WORKER_NOTIFICATION_ID = 717
         private const val DIRECT_FILE = "direct.mp4"
         private const val SOURCE_URL = "source.url"
         private const val RESOLVER_PREFS = "video_resolver"

