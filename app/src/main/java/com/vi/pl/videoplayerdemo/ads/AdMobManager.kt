@@ -9,13 +9,17 @@ import android.view.ViewGroup
 import android.view.View
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdValue
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.OnPaidEventListener
+import com.google.android.gms.ads.ResponseInfo
 import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.nativead.NativeAd
+import com.vi.pl.videoplayerdemo.hellohello.ref.AdTrackingHelper
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Process-wide AdMob facade. It deliberately has no VPN or network-model dependency. */
@@ -173,7 +177,18 @@ object AdMobManager {
         AdLogger.interstitialWaterfallTry(index, unit.name, unit.id, OPEN_SLOT)
         runCatching {
             AppOpenAd.load(context, unit.id, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
-                override fun onAdLoaded(ad: AppOpenAd) { onMain { openAd = ad; openLoadedAt = System.currentTimeMillis(); openLoading = false; AdLogger.interstitialLoaded(unit.name, unit.id, OPEN_SLOT); listener?.onAdLoaded() } }
+                override fun onAdLoaded(ad: AppOpenAd) {
+                    onMain {
+                        ad.onPaidEventListener = paidListener(
+                            context, unit.id, AdTrackingHelper.AdType.OPEN, OPEN_SLOT,
+                        ) { ad.responseInfo }
+                        openAd = ad
+                        openLoadedAt = System.currentTimeMillis()
+                        openLoading = false
+                        AdLogger.interstitialLoaded(unit.name, unit.id, OPEN_SLOT)
+                        listener?.onAdLoaded()
+                    }
+                }
                 override fun onAdFailedToLoad(error: LoadAdError) { onMain { AdLogger.interstitialLoadFailed(unit.name, OPEN_SLOT, error.message); loadOpenWaterfall(context, index + 1, listener) } }
             })
         }.onFailure { error ->
@@ -210,7 +225,20 @@ object AdMobManager {
         AdLogger.interstitialWaterfallTry(index, unit.name, unit.id, placement.id)
         runCatching {
             InterstitialAd.load(context, unit.id, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
-                override fun onAdLoaded(ad: InterstitialAd) { onMain { slot.ad = ad; slot.loadedAt = System.currentTimeMillis(); slot.loading = false; AdLogger.interstitialLoaded(unit.name, unit.id, placement.id); listener?.onAdLoaded() } }
+                override fun onAdLoaded(ad: InterstitialAd) {
+                    onMain {
+                        if (placement == InterstitialPlacement.GUIDE_1 || placement == InterstitialPlacement.GUIDE_2) {
+                            ad.onPaidEventListener = paidListener(
+                                context, unit.id, AdTrackingHelper.AdType.INTERSTITIAL, placement.id,
+                            ) { ad.responseInfo }
+                        }
+                        slot.ad = ad
+                        slot.loadedAt = System.currentTimeMillis()
+                        slot.loading = false
+                        AdLogger.interstitialLoaded(unit.name, unit.id, placement.id)
+                        listener?.onAdLoaded()
+                    }
+                }
                 override fun onAdFailedToLoad(error: LoadAdError) { onMain { AdLogger.interstitialLoadFailed(unit.name, placement.id, error.message); loadInterstitialWaterfall(context, placement, index + 1, listener) } }
             })
         }.onFailure { error ->
@@ -284,5 +312,21 @@ object AdMobManager {
         override fun onAdDismissedFullScreenContent() { AdLogger.interstitialClosed(slot); onClose(); listener?.onAdClosed() }
         override fun onAdFailedToShowFullScreenContent(error: AdError) { AdLogger.adShowFailed(slot, error.message); onFail(error.message); listener?.onAdShowFailed(error.message) }
     }
+
+    private fun paidListener(
+        context: Context,
+        adUnitId: String,
+        adType: String,
+        posId: String,
+        responseInfo: () -> ResponseInfo?,
+    ) = OnPaidEventListener { adValue: AdValue ->
+        AdTrackingHelper.trackAdRevenueAdjust(adValue, responseInfo(), adUnitId)
+        runCatching {
+            AdTrackingHelper.trackAdImpressionRevenueMicros(
+                context.applicationContext, adValue, adType, posId,
+            )
+        }
+    }
+
     private fun onMain(block: () -> Unit) { if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post(block) }
 }

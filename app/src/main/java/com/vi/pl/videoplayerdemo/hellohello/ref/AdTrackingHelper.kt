@@ -28,7 +28,7 @@ import java.util.UUID
  * 用于统一管理广告相关的埋点上报
  */
 object AdTrackingHelper {
-    private const val TAG = "AdTrackingHelper"
+    private const val TAG = "trackEvent"
 
     private val revenueLock = Any()
     private const val PREF_NAME = "ad_tracking_prefs"
@@ -44,108 +44,6 @@ object AdTrackingHelper {
         const val OPEN = "open"
         const val REWARDED = "rewarded"
     }
-
-//    /**
-//     * 上报广告请求（AdMob 聚合）
-//     */
-//    fun trackAdRequestGMA(
-//        adType: String,
-//        posId: String
-//    ): String {
-//        val adId = UUID.randomUUID().toString()
-//        TrackSDK.trackAdRequest(adType, posId, "AdMob", adId)
-//        return adId
-//    }
-//
-//    /**
-//     * 上报广告填充成功（显式传入来源，适配 AdMob）
-//     */
-//    fun trackAdFilledWithSource(
-//        adType: String,
-//        posId: String,
-//        adId: String,
-//        sdkName: String,
-//        adSource: String,
-//        duration: Long
-//    ) {
-//        TrackSDK.trackAdFilled(adType, posId, sdkName, adId, adSource, duration)
-//    }
-//
-//    /**
-//     * 上报广告填充失败
-//     * @param adType 广告类型
-//     * @param posId 位置ID
-//     * @param adId 唯一请求ID
-//     * @param errCode 错误码
-//     * @param errMsg 错误描述
-//     */
-//    fun trackAdFailed(
-//        adType: String,
-//        posId: String,
-//        adId: String,
-//        errCode: String,
-//        errMsg: String
-//    ) {
-//        // 将 errCode 转换为 Int，如果转换失败使用 -1
-//        val errCodeInt = errCode.toIntOrNull() ?: -1
-//        TrackSDK.trackAdFailed(adType, posId, "AdMob", adId, errCodeInt, errMsg)
-//    }
-//
-//    /**
-//     * 上报广告展示（显式传入来源，适配 AdMob）
-//     */
-//    fun trackAdImpressionWithSource(
-//        adType: String,
-//        posId: String,
-//        adId: String,
-//        sdkName: String,
-//        adSource: String,
-//        isVisiblePct: Int = 100,
-//        scene: String = ""
-//    ) {
-//        TrackSDK.trackAdImpression(
-//            adType,
-//            posId,
-//            sdkName,
-//            adId,
-//            adSource,
-//            isVisiblePct.toFloat(),
-//            scene
-//        )
-//    }
-//
-//    /**
-//     * 上报广告点击（显式传入来源，适配 AdMob）
-//     */
-//    fun trackAdClickWithSource(
-//        adType: String,
-//        posId: String,
-//        adId: String,
-//        sdkName: String,
-//        adSource: String,
-//        clickArea: String = ""
-//    ) {
-//        TrackSDK.trackAdClick(adType, posId, sdkName, adId, adSource, clickArea)
-//    }
-//
-//    /**
-//     * 上报广告关闭
-//     * @param adType 广告类型
-//     * @param posId 位置ID
-//     * @param adId 唯一请求ID
-//     * @param stayDuration 展示多少秒后关闭
-//     */
-//    fun trackAdClose(
-//        adType: String,
-//        posId: String,
-//        adId: String,
-//        stayDuration: Long
-//    ) {
-//        TrackSDK.trackAdClose(adType, posId, adId, stayDuration)
-//        GateBrowserApplication.get().flushTrackEvents()
-//    }
-
-
     fun trackAdRevenueAdjust(
         adValue: AdValue,
         responseInfo: ResponseInfo?,

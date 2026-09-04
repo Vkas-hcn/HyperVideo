@@ -258,7 +258,7 @@ class BannerAdSlot(
             )
             t.attachedLoadingAdView = adView
         }
-        adView.setOnPaidEventListener(OnPaidEventListener { adValue: AdValue ->
+        adView.onPaidEventListener = OnPaidEventListener { adValue: AdValue ->
             AdTrackingHelper.trackAdRevenueAdjust(adValue, adView.responseInfo, unit.id)
             runCatching {
                 AdTrackingHelper.trackAdImpressionRevenueMicros(
@@ -268,7 +268,7 @@ class BannerAdSlot(
                     slotName
                 )
             }
-        })
+        }
         adView.adListener = object : AdListener() {
             override fun onAdLoaded() {
                 // AdMob 自动刷新会再次回调同一 AdView；已在展示/缓存则只记日志，勿当新一次瀑布流。
