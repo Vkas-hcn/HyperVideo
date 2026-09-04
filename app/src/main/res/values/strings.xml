@@ -201,4 +201,5 @@
     <string name="download_bar_channel">Downloads</string>
     <string name="download_bar_idle">Ready to download</string>
     <string name="download_fgs_special_use_subtype" translatable="false">Persistent download status bar</string>
+    <string name="ad">AD</string>
 </resources>

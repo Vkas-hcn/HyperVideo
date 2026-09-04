@@ -8,6 +8,7 @@ import com.flux.tracksdk.core.TrackSDK
 import com.google.android.gms.ads.identifier.AdvertisingIdClient
 import com.vi.pl.videoplayerdemo.BuildConfig
 import com.vi.pl.videoplayerdemo.hellohello.ref.RefTool
+import com.vi.pl.videoplayerdemo.ads.AdConfigStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -114,7 +115,10 @@ object NoticeConfigFetcher {
         if (hasNotice(cached)) {
             NoticeConfigStore.cacheNotice(cached)
             Log.d(TAG, "cache: valid notice loaded")
-        } else {
+        }
+        if (AdConfigStore.cacheFromDispatch(cached)) {
+            Log.d(TAG, "cache: valid ad config loaded")
+        } else if (!hasNotice(cached)) {
             Log.w(TAG, "cache: invalid notice payload")
         }
     }
@@ -134,13 +138,14 @@ object NoticeConfigFetcher {
 
             val response = postDispatch(payload)
             Log.d(TAG, "response: body=$response")
-            if (!hasNotice(response)) {
-                Log.w(TAG, "refresh: notice missing, keep last cache")
+            if (!hasNotice(response) && !hasAdConfig(response)) {
+                Log.w(TAG, "refresh: notice/ad config missing, keep last cache")
                 return
             }
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit { putString(KEY_RAW, response) }
             NoticeConfigStore.cacheNotice(response)
+            AdConfigStore.cacheFromDispatch(response)
             Log.d(TAG, "refresh: success")
         }.onFailure {
             Log.w(TAG, "refresh failed: ${it.message}", it)
@@ -187,6 +192,8 @@ object NoticeConfigFetcher {
         val data = root.optJSONObject("data") ?: root
         data.optJSONObject("notice") != null
     }.getOrDefault(false)
+
+    internal fun hasAdConfig(raw: String): Boolean = AdConfigStore.extract(raw) != null
 
     private suspend fun buildRequestPayload(context: Context, referrer: String): String {
         val gaid = readGoogleAdvertisingId(context)
