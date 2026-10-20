@@ -259,7 +259,7 @@ class BannerAdSlot(
             t.attachedLoadingAdView = adView
         }
         adView.onPaidEventListener = OnPaidEventListener { adValue: AdValue ->
-            AdTrackingHelper.trackAdRevenueAdjust(adValue, adView.responseInfo, unit.id)
+//            AdTrackingHelper.trackAdRevenueAdjust(adValue, adView.responseInfo, unit.id)
             runCatching {
                 AdTrackingHelper.trackAdImpressionRevenueMicros(
                     context.applicationContext,

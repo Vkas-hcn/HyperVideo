@@ -145,7 +145,7 @@ class NativeAdSlot(
 
                 // 设置广告收益监听
                 ad.setOnPaidEventListener { adValue ->
-                    AdTrackingHelper.trackAdRevenueAdjust(adValue, ad.responseInfo, adUnitId)
+//                    AdTrackingHelper.trackAdRevenueAdjust(adValue, ad.responseInfo, adUnitId)
                     runCatching {
                         AdTrackingHelper.trackAdImpressionRevenueMicros(
                             context,

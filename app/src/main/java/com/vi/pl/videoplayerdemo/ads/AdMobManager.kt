@@ -340,7 +340,7 @@ object AdMobManager {
         posId: String,
         responseInfo: () -> ResponseInfo?,
     ) = OnPaidEventListener { adValue: AdValue ->
-        AdTrackingHelper.trackAdRevenueAdjust(adValue, responseInfo(), adUnitId)
+//        AdTrackingHelper.trackAdRevenueAdjust(adValue, responseInfo(), adUnitId)
         runCatching {
             AdTrackingHelper.trackAdImpressionRevenueMicros(
                 context.applicationContext, adValue, adType, posId,

@@ -44,6 +44,7 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         LocalConfig.init()
         AdMobManager.initialize(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+        initTrackSdk()
     }
 
     override fun onStart(owner: LifecycleOwner) {

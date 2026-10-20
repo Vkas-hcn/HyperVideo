@@ -126,12 +126,12 @@ object AdTrackingHelper {
         }.onFailure {
             Log.e(TAG, "trackRevenueEvent Firebase failed: $event", it)
         }
-        //Adjust
-        runCatching {
-            adjustPoint(event, revenue, currencyCode)
-        }.onFailure {
-            Log.e(TAG, "trackRevenueEvent Adjust failed: $event", it)
-        }
+//        //Adjust
+//        runCatching {
+//            adjustPoint(event, revenue, currencyCode)
+//        }.onFailure {
+//            Log.e(TAG, "trackRevenueEvent Adjust failed: $event", it)
+//        }
         //BI
         runCatching {
             TrackSDK.trackAdRevenue(revenue)
@@ -194,7 +194,7 @@ object AdTrackingHelper {
         currencyCode: String = "USD"
     ) {
         putFirebaseAdRevenue(context, event, revenue, currencyCode)
-        adjustPoint(event, revenue, currencyCode)
+//        adjustPoint(event, revenue, currencyCode)
         runCatching {
             TrackSDK.track(event, null, TrackPolicy.IMMEDIATE)
             Log.d(TAG, "trackValueEvent: $event revenue=$revenue currency=$currencyCode")
