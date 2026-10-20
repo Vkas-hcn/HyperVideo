@@ -79,7 +79,7 @@ class GuideActivity : AppCompatActivity() {
         applyInsets(findViewById(android.R.id.content))
         val progress = findViewById<ProgressBar>(R.id.splash_progress)
         splashAnimator = ObjectAnimator.ofInt(progress, "progress", 0, progress.max).apply {
-            duration = SPLASH_MS
+            duration = AdMobManager.getIntersOpenLoadTimeoutMs().coerceAtLeast(1L)
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
                     permissionDone =
@@ -269,7 +269,6 @@ class GuideActivity : AppCompatActivity() {
     }
 
     companion object {
-        const val SPLASH_MS = 2000L
         const val GUIDE_LOAD_DELAY_MS = 500L
         const val UMP_PREFS = "ump"
         const val UMP_DONE = "completed"
