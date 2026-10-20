@@ -22,7 +22,6 @@ import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
 import com.vi.pl.videoplayerdemo.ads.AdMobManager
 import com.vi.pl.videoplayerdemo.ads.AdConfigStore
 import com.vi.pl.videoplayerdemo.hellohello.HintUtil
-import com.vi.pl.videoplayerdemo.hellohello.NoticeConfigFetcher
 import com.vi.pl.videoplayerdemo.hellohello.NoticeConfigStore
 import com.vi.pl.videoplayerdemo.ui.DownloadQualityCoordinator
 import com.vi.pl.videoplayerdemo.ui.GuideActivity
@@ -43,8 +42,9 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         registerActivityLifecycleCallbacks(HotStartActivityCallbacks())
         NoticeConfigStore.init(this)
         AdConfigStore.init(this)
+        // 下发接口已移除，改用本地硬编码配置：配置必须在 SDK 初始化前就绪。
+        LocalConfig.init()
         AdMobManager.initialize(this)
-        NoticeConfigFetcher.init(this)
         HintUtil.init(this)
         HintUtil.startJob(this)
         DownloadBarLauncher.ensureRunning(this)

@@ -20,7 +20,12 @@ object InterstitialDailyCapStore {
         if (context == null) return true
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         ensureDay(prefs, slot)
-        return prefs.getInt(countKey(slot), 0) < dailyLimit
+        val count = prefs.getInt(countKey(slot), 0)
+        if (count >= dailyLimit) {
+            AdLogger.capBlocked(slot, count, dailyLimit)
+            return false
+        }
+        return true
     }
 
     fun getTodayCount(context: Context?, slot: String = DEFAULT_SLOT): Int {
@@ -41,6 +46,7 @@ object InterstitialDailyCapStore {
         ensureDay(prefs, slot)
         val next = prefs.getInt(countKey(slot), 0) + 1
         prefs.edit().putInt(countKey(slot), next).apply()
+        AdLogger.capPresentedCount(slot, next, dailyLimit)
     }
 
     private fun ensureDay(prefs: android.content.SharedPreferences, slot: String) {

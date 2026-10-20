@@ -22,6 +22,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.ads.AdMobManager
+import com.vi.pl.videoplayerdemo.ads.NativeAdPresenter
 import com.vi.pl.videoplayerdemo.download.DownloadBarLauncher
 import com.vi.pl.videoplayerdemo.local.FavoriteStore
 import com.vi.pl.videoplayerdemo.local.LocalVideoActions
@@ -50,6 +52,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var pendingRename: Pair<Uri, String>? = null
     private var pendingDeleteUri: Uri? = null
     private var pendingBackground: Pair<LocalVideoItem, List<LocalVideoItem>>? = null
+    private var nativeAdPresenter: NativeAdPresenter? = null
 
     private val mediaRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -143,6 +146,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             }
         }
         updateContent()
+
+        // home_native：进入首页即加载，容器位于列表底部、导航栏上方。
+        nativeAdPresenter = NativeAdPresenter(
+            AdMobManager.NativePlacement.HOME,
+            view.findViewById(R.id.home_native_ad),
+        ).also { it.show() }
     }
 
     override fun onResume() {
@@ -151,6 +160,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             preferences.edit().putInt(PREF_DENIAL_COUNT, 0).apply()
             showContent()
         }
+        nativeAdPresenter?.show()
+    }
+
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (!hidden) nativeAdPresenter?.show()
+    }
+
+    override fun onDestroyView() {
+        nativeAdPresenter?.release()
+        nativeAdPresenter = null
+        super.onDestroyView()
     }
 
     private fun bindPermissionSteps(view: View) {

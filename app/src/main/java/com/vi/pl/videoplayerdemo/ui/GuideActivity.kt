@@ -213,7 +213,7 @@ class GuideActivity : AppCompatActivity() {
         if (!openReady && !guide1Ready && !guide2Ready) return
         var failureReported = false
         val shown = AdMobManager.showGuideAdIfReady(this, object : AdShowListener {
-            override fun onAdShowed() = AdLogger.interstitialPresented("guide_startup")
+            override fun onAdShowed() = Unit
             override fun onAdShowFailed(error: String) {
                 failureReported = true; adShowing = false; continueStartup()
             }
@@ -230,7 +230,7 @@ class GuideActivity : AppCompatActivity() {
     private fun startAdTimeout() {
         if (!umpDone || !permissionDone || adFinished || adTimeout != null) return
         val timeoutMs = AdMobManager.getIntersOpenLoadTimeoutMs()
-        AdLogger.interstitialLoadRequest("guide_startup_timeout", "${timeoutMs}ms")
+        AdLogger.guideTimeoutArmed(timeoutMs)
         adTimeout = Runnable {
             if (!adShowing) {
                 AdLogger.guideAdTimeout(timeoutMs)

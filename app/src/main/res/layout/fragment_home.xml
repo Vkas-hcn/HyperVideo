@@ -184,5 +184,12 @@
                 android:paddingBottom="16dp"
                 android:visibility="gone" />
         </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/home_native_ad"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:visibility="gone" />
     </LinearLayout>
 </FrameLayout>

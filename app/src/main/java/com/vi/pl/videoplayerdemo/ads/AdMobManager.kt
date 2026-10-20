@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.ViewGroup
 import android.view.View
 import com.google.android.gms.ads.AdError
@@ -30,7 +29,6 @@ object AdMobManager {
         HOME("inters_home"), BACK("inters_back"), SEARCH_BACK("search_inters_back")
     }
 
-    private const val TAG = "AdMobManager"
     private const val CACHE_TTL_MS = 3_000_000L
     private const val OPEN_SLOT = "open_back"
     private const val LOAD_FAILED = "Failed to load all ad units"
@@ -61,8 +59,12 @@ object AdMobManager {
 
     fun loadNativeAd(context: Context, placement: NativePlacement, listener: NativeAdLoadListener? = null) = onMain {
         val type = if (placement == NativePlacement.HOME) config.homeNativeConfig else config.nativeCommonConfig
-        if (!canLoad(type, listener)) return@onMain
-        if (!NativeDailyCapStore.canLoadOrShow(context, placement.name, config.nativeDailyLimit)) return@onMain
+        val slot = "native_${placement.name}"
+        if (!canLoad(type, listener, slot)) return@onMain
+        if (!NativeDailyCapStore.canLoadOrShow(context, placement.name, config.nativeDailyLimit)) {
+            listener?.onAdFailedToLoad("Daily display cap reached")
+            return@onMain
+        }
         nativeSlots.getValue(placement).loadAd(context.applicationContext, placement.name, type!!.adUnits, listener)
     }
 
@@ -71,6 +73,9 @@ object AdMobManager {
     fun getNativeAd(placement: NativePlacement): NativeAd? = nativeSlots.getValue(placement).acquireAdForDisplayAny()
     fun destroyNativeAd(placement: NativePlacement) = nativeSlots.getValue(placement).destroy()
     fun releaseNativeAdContainer(container: ViewGroup, placement: NativePlacement) { container.removeAllViews(); destroyNativeAd(placement) }
+    /** 原生广告真实曝光后计数，供 ad_frequency_control.max_native_display_count 频控使用。 */
+    fun onNativeAdDisplayed(context: Context, placement: NativePlacement) =
+        NativeDailyCapStore.onPresented(context, placement.name, config.nativeDailyLimit)
     fun updateNativeAdContainer(container: ViewGroup, placement: NativePlacement, loadWhenMissing: Boolean = true, preloadAfterDisplay: Boolean = true, forceRefresh: Boolean = false): NativeContainerState {
         if (!isAdEnabled()) { container.visibility = View.GONE; return NativeContainerState.HIDDEN }
         if (container.childCount > 0 && !forceRefresh) return NativeContainerState.DISPLAYED
@@ -85,7 +90,7 @@ object AdMobManager {
     fun bannerModeCollapsible() = BannerAdSlot.BannerMode.COLLAPSIBLE
     fun loadBanner(context: Context, mode: BannerAdSlot.BannerMode = bannerModeRegular(), listener: AdLoadListener? = null, attachTo: ViewGroup? = null) = onMain {
         val type = config.barBannerConfig
-        if (!canLoad(type, listener)) return@onMain
+        if (!canLoad(type, listener, "bar_banner")) return@onMain
         if (!InterstitialDailyCapStore.canLoadOrShow(context, config.bannerDailyLimit, "bar_banner")) return@onMain
         bannerSlot.load(context.applicationContext, type!!.adUnits, mode, object : AdLoadListener {
             override fun onAdLoaded() { listener?.onAdLoaded(); bannerObservers.getValue(mode).forEach { it.onAdLoaded() } }
@@ -125,7 +130,6 @@ object AdMobManager {
                     }
                 }
             }.onFailure {
-                Log.w(TAG, "AdMob initialization failed", it)
                 AdLogger.sdkInitFailed(it)
                 initCallbacks.toList().also { initCallbacks.clear() }.forEach { runCatching { it(false) } }
             }
@@ -140,7 +144,7 @@ object AdMobManager {
         val raw = json.orEmpty()
         if (raw == configJson) return@onMain
         val parsed = runCatching { if (raw.isBlank()) AdConfig() else AdConfigSerializer.fromJson(raw) }
-            .onFailure { Log.w(TAG, "Invalid ad config", it) }.getOrDefault(AdConfig())
+            .onFailure { AdLogger.configInvalid(it) }.getOrDefault(AdConfig())
         val old = config
         configJson = raw
         config = parsed
@@ -164,8 +168,16 @@ object AdMobManager {
     fun resetGuideShowState() = synchronized(this) { guideShown = false }
 
     fun loadOpenAd(context: Context, listener: AdLoadListener? = null) = onMain {
-        AdLogger.interstitialLoadRequest(OPEN_SLOT, if (openLoading) "LOADING" else "NOT_LOADED")
-        if (!canLoad(config.intersBackConfig, listener) || !InterstitialDailyCapStore.canLoadOrShow(context, config.openDailyLimit, OPEN_SLOT) || openLoading || validOpen()) { listener?.let { if (validOpen()) it.onAdLoaded() }; return@onMain }
+        val state = when {
+            openLoading -> "LOADING"
+            validOpen() -> "LOADED"
+            else -> "NOT_LOADED"
+        }
+        AdLogger.interstitialLoadRequest(OPEN_SLOT, state)
+        if (!canLoad(config.intersBackConfig, listener, OPEN_SLOT) || !InterstitialDailyCapStore.canLoadOrShow(context, config.openDailyLimit, OPEN_SLOT) || openLoading || validOpen()) {
+            if (validOpen()) { AdLogger.interstitialCacheHit(OPEN_SLOT); listener?.onAdLoaded() }
+            return@onMain
+        }
         openLoading = true
         loadOpenWaterfall(context.applicationContext, 0, listener)
     }
@@ -202,7 +214,7 @@ object AdMobManager {
 
     fun showOpenAd(activity: Activity, listener: AdShowListener? = null): Boolean {
         AdLogger.interstitialShowRequest(OPEN_SLOT, if (validOpen()) "LOADED" else "NOT_LOADED", null)
-        if (!validOpen() || !canShow(activity, listener) || !InterstitialDailyCapStore.canLoadOrShow(activity, config.openDailyLimit, OPEN_SLOT)) return false
+        if (!validOpen() || !canShow(activity, listener, OPEN_SLOT) || !InterstitialDailyCapStore.canLoadOrShow(activity, config.openDailyLimit, OPEN_SLOT)) return false
         val ad = openAd ?: return false
         openShowing = true; openAd = null; openLoadedAt = 0L
         ad.fullScreenContentCallback = callback(OPEN_SLOT, listener, onShow = { openShowing = true; InterstitialDailyCapStore.onPresented(activity, config.openDailyLimit, OPEN_SLOT) }, onClose = { openShowing = false; loadOpenAd(activity.applicationContext) }, onFail = { openShowing = false })
@@ -211,9 +223,17 @@ object AdMobManager {
 
     fun loadInterstitial(context: Context, placement: InterstitialPlacement, listener: AdLoadListener? = null) = onMain {
         val slot = slots.getValue(placement)
-        AdLogger.interstitialLoadRequest(placement.id, if (slot.loading) "LOADING" else "NOT_LOADED")
+        val state = when {
+            slot.loading -> "LOADING"
+            valid(slot) -> "LOADED"
+            else -> "NOT_LOADED"
+        }
+        AdLogger.interstitialLoadRequest(placement.id, state)
         val cap = if (placement.usesOpenCap) config.openDailyLimit else config.interstitialDailyLimit
-        if (!canLoad(configFor(placement), listener) || !InterstitialDailyCapStore.canLoadOrShow(context, cap, placement.id) || slot.loading || valid(slot)) { if (valid(slot)) listener?.onAdLoaded(); return@onMain }
+        if (!canLoad(configFor(placement), listener, placement.id) || !InterstitialDailyCapStore.canLoadOrShow(context, cap, placement.id) || slot.loading || valid(slot)) {
+            if (valid(slot)) { AdLogger.interstitialCacheHit(placement.id); listener?.onAdLoaded() }
+            return@onMain
+        }
         slot.loading = true; loadInterstitialWaterfall(context.applicationContext, placement, 0, listener)
     }
 
@@ -252,7 +272,7 @@ object AdMobManager {
         val slot = slots.getValue(placement); val ad = slot.ad
         val cap = if (placement.usesOpenCap) config.openDailyLimit else config.interstitialDailyLimit
         AdLogger.interstitialShowRequest(placement.id, if (valid(slot)) "LOADED" else "NOT_LOADED", null)
-        if (!valid(slot) || ad == null || !canShow(activity, listener) || !InterstitialDailyCapStore.canLoadOrShow(activity, cap, placement.id)) return false
+        if (!valid(slot) || ad == null || !canShow(activity, listener, placement.id) || !InterstitialDailyCapStore.canLoadOrShow(activity, cap, placement.id)) return false
         slot.ad = null; slot.loadedAt = 0L; slot.showing = true
         ad.fullScreenContentCallback = callback(placement.id, listener, onShow = { InterstitialDailyCapStore.onPresented(activity, cap, placement.id) }, onClose = { slot.showing = false; loadInterstitial(activity.applicationContext, placement) }, onFail = { slot.showing = false })
         return runCatching { ad.show(activity); true }.getOrElse { slot.showing = false; AdLogger.adShowFailed(placement.id, it.message ?: NOT_LOADED); listener?.onAdShowFailed(it.message ?: NOT_LOADED); false }
@@ -272,27 +292,27 @@ object AdMobManager {
         InterstitialPlacement.BACK -> config.intersBrowserBackConfig
         InterstitialPlacement.SEARCH_BACK -> config.searchIntersBackConfig
     }
-    private fun canLoad(type: AdTypeConfig?, listener: AdLoadListener?): Boolean {
-        if (!sdkInitialized) { AdLogger.loadBlocked("ad", "SDK not initialized"); listener?.onAdFailedToLoad("SDK not initialized"); return false }
-        if (!config.enabled || type?.enabled != true || type.adUnits.isEmpty()) { AdLogger.loadBlocked("ad", "Ad disabled by config"); listener?.onAdFailedToLoad("Ad disabled by config"); return false }
+    private fun canLoad(type: AdTypeConfig?, listener: AdLoadListener?, slot: String): Boolean {
+        if (!sdkInitialized) { AdLogger.loadBlocked(slot, "SDK not initialized"); listener?.onAdFailedToLoad("SDK not initialized"); return false }
+        if (!config.enabled || type?.enabled != true || type.adUnits.isEmpty()) { AdLogger.loadBlocked(slot, "Ad disabled by config"); listener?.onAdFailedToLoad("Ad disabled by config"); return false }
         return true
     }
-    private fun canLoad(type: AdTypeConfig?, listener: NativeAdLoadListener?): Boolean {
-        if (!sdkInitialized) { AdLogger.loadBlocked("native", "SDK not initialized"); listener?.onAdFailedToLoad("SDK not initialized"); return false }
-        if (!config.enabled || type?.enabled != true || type.adUnits.isEmpty()) { AdLogger.loadBlocked("native", "Ad disabled by config"); listener?.onAdFailedToLoad("Ad disabled by config"); return false }
+    private fun canLoad(type: AdTypeConfig?, listener: NativeAdLoadListener?, slot: String): Boolean {
+        if (!sdkInitialized) { AdLogger.loadBlocked(slot, "SDK not initialized"); listener?.onAdFailedToLoad("SDK not initialized"); return false }
+        if (!config.enabled || type?.enabled != true || type.adUnits.isEmpty()) { AdLogger.loadBlocked(slot, "Ad disabled by config"); listener?.onAdFailedToLoad("Ad disabled by config"); return false }
         return true
     }
-    private fun canShow(activity: Activity, listener: AdShowListener?): Boolean {
+    private fun canShow(activity: Activity, listener: AdShowListener?, slot: String): Boolean {
         if (!appForeground) {
-            AdLogger.interstitialShowBlocked("app_background", null)
+            AdLogger.interstitialShowBlocked("app_background", slot)
             return false
         }
         if (isAnyAdShowing()) {
-            AdLogger.interstitialShowBlocked("another_ad_showing", null)
+            AdLogger.interstitialShowBlocked("another_ad_showing", slot)
             return false
         }
         if (activity.isFinishing || activity.isDestroyed) {
-            AdLogger.interstitialShowBlocked("invalid_activity", null)
+            AdLogger.interstitialShowBlocked("invalid_activity", slot)
             return false
         }
         return true

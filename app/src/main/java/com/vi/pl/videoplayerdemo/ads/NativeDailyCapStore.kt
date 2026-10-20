@@ -16,7 +16,12 @@ object NativeDailyCapStore {
         if (context == null) return true
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         ensureDay(prefs)
-        return getCount(prefs, slot) < dailyLimit
+        val count = getCount(prefs, slot)
+        if (count >= dailyLimit) {
+            AdLogger.capBlocked("native_$slot", count, dailyLimit)
+            return false
+        }
+        return true
     }
 
     fun onPresented(context: Context?, slot: String, dailyLimit: Int) {
@@ -26,6 +31,7 @@ object NativeDailyCapStore {
         ensureDay(prefs)
         val next = getCount(prefs, slot) + 1
         prefs.edit().putInt(resolveSlotKey(slot), next).apply()
+        AdLogger.capPresentedCount("native_$slot", next, dailyLimit)
     }
 
     fun getTodayCount(context: Context?, slot: String): Int {
