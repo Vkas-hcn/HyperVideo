@@ -35,7 +35,6 @@ object NoticeConfigStore {
             notice.optJSONObject(KEY_POP_CONFIG_SAMSUNG)?.let { putString(KEY_POP_CONFIG_SAMSUNG, it.toString()) }
             notice.optJSONObject(KEY_BANNER_NOTIFY)?.let { putString(KEY_BANNER_NOTIFY, it.toString()) }
         }
-        HintUtil.markLing()
     }
 
     fun getReceiveConfig(): UserPop {

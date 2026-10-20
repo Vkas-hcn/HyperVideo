@@ -17,11 +17,9 @@ import com.flux.tracksdk.core.TrackConfig
 import com.flux.tracksdk.core.TrackSDK
 import com.flux.tracksdk.model.TrackPolicy
 import com.google.android.gms.ads.AdActivity
-import com.vi.pl.videoplayerdemo.download.DownloadBarLauncher
 import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
 import com.vi.pl.videoplayerdemo.ads.AdMobManager
 import com.vi.pl.videoplayerdemo.ads.AdConfigStore
-import com.vi.pl.videoplayerdemo.hellohello.HintUtil
 import com.vi.pl.videoplayerdemo.hellohello.NoticeConfigStore
 import com.vi.pl.videoplayerdemo.ui.DownloadQualityCoordinator
 import com.vi.pl.videoplayerdemo.ui.GuideActivity
@@ -45,17 +43,12 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         // 下发接口已移除，改用本地硬编码配置：配置必须在 SDK 初始化前就绪。
         LocalConfig.init()
         AdMobManager.initialize(this)
-        HintUtil.init(this)
-        HintUtil.startJob(this)
-        DownloadBarLauncher.ensureRunning(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
     }
 
     override fun onStart(owner: LifecycleOwner) {
         processInForeground = true
         AdMobManager.updateAppForegroundState(true)
-        DownloadBarLauncher.ensureRunning(this)
-        HintUtil.startJob(this)
         if (!hotStartReady) return
         hotStartReady = false
         launchGuideForHotStart()

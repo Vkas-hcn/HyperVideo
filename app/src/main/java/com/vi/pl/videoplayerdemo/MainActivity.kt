@@ -1,12 +1,10 @@
 package com.vi.pl.videoplayerdemo
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.vi.pl.videoplayerdemo.hellohello.HintUtil
 import com.vi.pl.videoplayerdemo.ui.DownloadFragment
 import com.vi.pl.videoplayerdemo.ui.HomeFragment
 import com.vi.pl.videoplayerdemo.ui.ProfileFragment
@@ -36,8 +34,6 @@ class MainActivity : AppCompatActivity() {
                 .commit()
         }
 
-        handleNoticeIntent(intent)
-
         findViewById<BottomNavigationView>(R.id.bottom_navigation).apply {
             // Keep original red/gray colors from tab_* selectors; Material3 would otherwise tint purple.
             itemIconTintList = null
@@ -53,16 +49,6 @@ class MainActivity : AppCompatActivity() {
                 true
             }
         }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        handleNoticeIntent(intent)
-    }
-
-    private fun handleNoticeIntent(intent: Intent?) {
-        intent?.getIntExtra(HintUtil.CO_SHOW_TYPE, -1) ?: return
     }
 
     private fun showFragment(tag: String) {

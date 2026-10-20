@@ -1,12 +1,9 @@
 package com.vi.pl.videoplayerdemo.ui
 
-import android.Manifest
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,12 +11,9 @@ import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
 import androidx.activity.addCallback
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.lifecycle.Lifecycle
 import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
@@ -29,14 +23,11 @@ import com.vi.pl.videoplayerdemo.ads.AdLoadListener
 import com.vi.pl.videoplayerdemo.ads.AdLogger
 import com.vi.pl.videoplayerdemo.ads.AdMobManager
 import com.vi.pl.videoplayerdemo.ads.AdShowListener
-import com.vi.pl.videoplayerdemo.download.DownloadBarLauncher
 
 class GuideActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var splashAnimator: ObjectAnimator? = null
     private var umpDone = false
-    private var permissionDone = false
-    private var permissionInFlight = false
     private var adFlowStarted = false
     private var adShowing = false
     private var adFinished = false
@@ -44,16 +35,6 @@ class GuideActivity : AppCompatActivity() {
     private var guide1Ready = false
     private var guide2Ready = false
     private var adTimeout: Runnable? = null
-
-    private val permissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-            permissionInFlight = false
-            permissionDone = true
-            AdLogger.guidePermissionResolved(it)
-            startAdTimeout()
-            if (it) DownloadBarLauncher.ensureRunning(this)
-            continueStartup()
-        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,7 +51,6 @@ class GuideActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!permissionDone && umpDone) requestNotificationPermission()
         continueStartup()
     }
 
@@ -82,8 +62,7 @@ class GuideActivity : AppCompatActivity() {
             duration = AdMobManager.getIntersOpenLoadTimeoutMs().coerceAtLeast(1L)
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    permissionDone =
-                        !shouldRequestPermission(); requestNotificationPermission(); continueStartup()
+                    continueStartup()
                 }
             })
             start()
@@ -95,8 +74,6 @@ class GuideActivity : AppCompatActivity() {
         clearTimeout()
         handler.removeCallbacksAndMessages(null)
         umpDone = false
-        permissionDone = false
-        permissionInFlight = false
         adFlowStarted = false
         adShowing = false
         adFinished = false
@@ -143,33 +120,7 @@ class GuideActivity : AppCompatActivity() {
         AdLogger.guideUmpCompleted()
         getSharedPreferences(UMP_PREFS, MODE_PRIVATE).edit().putBoolean(UMP_DONE, true).apply()
         startAds()
-        requestNotificationPermission()
-        if (permissionDone) startAdTimeout()
-    }
-
-    private fun shouldRequestPermission() = Build.VERSION.SDK_INT >= 33 && !isPermissionGranted() &&
-            !getSharedPreferences(PERM_PREFS, MODE_PRIVATE).getBoolean(PERM_REQUESTED, false)
-
-    private fun isPermissionGranted() =
-        Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-
-    private fun requestNotificationPermission() {
-        if (!umpDone || permissionDone || permissionInFlight || !shouldRequestPermission()) {
-            if (umpDone && !permissionDone && !shouldRequestPermission()) {
-                permissionDone = true
-                AdLogger.guidePermissionResolved(true)
-                startAdTimeout()
-            }; return
-        }
-        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
-        getSharedPreferences(PERM_PREFS, MODE_PRIVATE).edit().putBoolean(PERM_REQUESTED, true)
-            .apply()
-        permissionInFlight = true
-        AdLogger.guidePermissionRequested()
-        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        startAdTimeout()
     }
 
     private fun startAds() {
@@ -204,7 +155,7 @@ class GuideActivity : AppCompatActivity() {
     }
 
     private fun continueStartup() {
-        if (!umpDone || !permissionDone || isFinishing || isDestroyed) return
+        if (!umpDone || isFinishing || isDestroyed) return
         startAdTimeout()
         if (adShowing) return
         if (adFinished) {
@@ -228,7 +179,7 @@ class GuideActivity : AppCompatActivity() {
     }
 
     private fun startAdTimeout() {
-        if (!umpDone || !permissionDone || adFinished || adTimeout != null) return
+        if (!umpDone || adFinished || adTimeout != null) return
         val timeoutMs = AdMobManager.getIntersOpenLoadTimeoutMs()
         AdLogger.guideTimeoutArmed(timeoutMs)
         adTimeout = Runnable {
@@ -248,9 +199,8 @@ class GuideActivity : AppCompatActivity() {
     }
 
     private fun goMain() {
-        if (isFinishing || isDestroyed) return; if (isPermissionGranted()) DownloadBarLauncher.ensureRunning(
-            this
-        ); startActivity(Intent(this, MainActivity::class.java)); finish()
+        if (isFinishing || isDestroyed) return
+        startActivity(Intent(this, MainActivity::class.java)); finish()
     }
 
     private fun applyInsets(root: View) {
@@ -272,8 +222,6 @@ class GuideActivity : AppCompatActivity() {
         const val GUIDE_LOAD_DELAY_MS = 500L
         const val UMP_PREFS = "ump"
         const val UMP_DONE = "completed"
-        const val PERM_PREFS = "notice_permission"
-        const val PERM_REQUESTED = "requested"
         const val TAG = "GuideActivity"
         const val EXTRA_HOT_START = "extra_hot_start"
 

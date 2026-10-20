@@ -1,18 +1,29 @@
 package com.vi.pl.videoplayerdemo.download
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
+import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.ForegroundInfo
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.vi.pl.videoplayerdemo.MainActivity
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.search.VideoPlatform
 import com.vi.pl.videoplayerdemo.search.VideoUrlDetector
@@ -28,6 +39,13 @@ import kotlin.math.roundToInt
 
 class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     private val dao = DownloadDatabase.get(context).jobs()
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * 只有 Manifest 里给 WorkManager 的前台服务声明了 dataSync 类型，才能调用
+     * setForegroundAsync；否则 startForeground 会抛 IllegalArgumentException 直接崩进程。
+     */
+    private val foregroundSupported: Boolean by lazy { dataSyncForegroundDeclared() }
     private var resolverInitialized = false
     @Volatile private var activeConnection: HttpURLConnection? = null
     @Volatile private var notifyTitle = ""
@@ -46,8 +64,12 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         Log.e(TAG, "download start title=${job.title} url=${job.pageUrl}")
         val tempDir = VideoDownloadRepository.jobDir(applicationContext, id).apply { mkdirs() }
         return try {
-            DownloadBarService.updateProgress(applicationContext, job.title, job.progress, job.state)
-            runCatching { setForegroundAsync(getForegroundInfo()).get() }
+            if (foregroundSupported) {
+                runCatching { setForegroundAsync(getForegroundInfo()).get() }
+                    .onFailure { Log.w(TAG, "foreground start failed, continue without it", it) }
+            } else {
+                Log.w(TAG, "foreground service type not declared, download without foreground")
+            }
             val sourcePage = File(tempDir, SOURCE_URL).takeIf { it.isFile }?.readText()?.trim()
                 ?.takeIf { it.isNotBlank() }
             val sourceUrl = VideoUrlDetector.facebookDownloadUrl(sourcePage.orEmpty())
@@ -141,8 +163,6 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 update(job, DownloadState.FAILED, job.progress)
                 Result.failure()
             }
-        } finally {
-            DownloadBarService.restoreIdle(applicationContext)
         }
     }
 
@@ -155,18 +175,68 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                 else markPaused(id, job, "Download paused. Tap Continue to resume.")
             }
         }
-        DownloadBarService.restoreIdle(applicationContext)
         super.onStopped()
     }
 
     override fun getForegroundInfo(): ForegroundInfo {
         NotificationManagerCompat.from(applicationContext).cancel(LEGACY_WORKER_NOTIFICATION_ID)
-        val notification = DownloadBarService.createNotification(applicationContext)
+        val notification = buildProgressNotification()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(DownloadBarService.NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            ForegroundInfo(DownloadBarService.NOTIFICATION_ID, notification)
+            ForegroundInfo(NOTIFICATION_ID, notification)
         }
+    }
+
+    /** 下载过程中的前台服务通知（仅下载期间存在，不再是常驻条）。 */
+    private fun buildProgressNotification(): Notification {
+        ensureNotificationChannel()
+        val title = notifyTitle.ifBlank { applicationContext.getString(R.string.download_notification_title) }
+        val status = applicationContext.getString(R.string.download_notification_progress, notifyProgress)
+        val click = PendingIntent.getActivity(
+            applicationContext,
+            NOTIFICATION_ID,
+            Intent(applicationContext, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        return NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_download_btn)
+            .setContentTitle(title)
+            .setContentText(status)
+            .setOngoing(true)
+            .setShowWhen(false)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(click)
+            .setProgress(100, notifyProgress, notifyIndeterminate)
+            .build()
+    }
+
+    private fun ensureNotificationChannel() {
+        val manager = applicationContext.getSystemService(NotificationManager::class.java) ?: return
+        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                applicationContext.getString(R.string.download_notification_channel),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply { setShowBadge(false) },
+        )
+    }
+
+    private fun dataSyncForegroundDeclared(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        val info = runCatching {
+            applicationContext.packageManager.getServiceInfo(
+                ComponentName(applicationContext, "androidx.work.impl.foreground.SystemForegroundService"),
+                0,
+            )
+        }.getOrNull() ?: return false
+        return info.foregroundServiceType and ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC != 0
     }
 
     private fun ensureResolver() {
@@ -435,13 +505,22 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         dao.update(job)
         setProgressAsync(androidx.work.workDataOf("progress" to progress, "state" to state.name))
         publishDownloadNotification(job.title, progress, state)
+        if (state == DownloadState.FAILED) notifyDownloadFailed(job)
+    }
+
+    /** 下载失败时给用户一个可见提示；应用在前台会立即弹出，后台时静默丢弃不崩溃。 */
+    private fun notifyDownloadFailed(job: DownloadJob) {
+        val message = job.failureReason?.takeIf { it.isNotBlank() }
+            ?: applicationContext.getString(R.string.download_failed)
+        mainHandler.post {
+            runCatching { Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show() }
+        }
     }
 
     private fun publishDownloadNotification(title: String, progress: Int, state: DownloadState) {
         notifyTitle = title.ifBlank { applicationContext.getString(R.string.download_notification_title) }
         notifyProgress = progress.coerceIn(0, 100)
         notifyIndeterminate = state != DownloadState.DOWNLOADING && state != DownloadState.COMPLETED
-        DownloadBarService.updateProgress(applicationContext, notifyTitle, notifyProgress, state)
         val now = SystemClock.elapsedRealtime()
         val terminal = state == DownloadState.COMPLETED || state == DownloadState.FAILED ||
             state == DownloadState.CANCELLED || state == DownloadState.PAUSED
@@ -449,6 +528,7 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         if (!terminal && now - lastNotifyAt < 200L) return
         lastNotifiedProgress = progress
         lastNotifyAt = now
+        if (!foregroundSupported) return
         runCatching { setForegroundAsync(getForegroundInfo()) }
     }
 
@@ -641,6 +721,8 @@ class VideoDownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         const val QUALITY_RESOLVED = "quality_resolved"
         private const val TAG = "VideoDownload"
         private const val LEGACY_WORKER_NOTIFICATION_ID = 717
+        private const val NOTIFICATION_ID = 9802
+        private const val CHANNEL_ID = "downloads"
         private const val DIRECT_FILE = "direct.mp4"
         private const val SOURCE_URL = "source.url"
         private const val RESOLVER_PREFS = "video_resolver"
