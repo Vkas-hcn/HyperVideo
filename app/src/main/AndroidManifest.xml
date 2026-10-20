@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -10,10 +11,6 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <queries>
@@ -35,6 +32,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VideoPlayerDemo"
         android:extractNativeLibs="true">
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
         <activity
             android:name=".ui.GuideActivity"
             android:exported="true"
@@ -47,7 +47,8 @@
         </activity>
         <activity
             android:name=".MainActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:launchMode="singleTop" />
         <activity
             android:name=".PlayerActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize"
@@ -82,11 +83,13 @@
             android:name=".player.BackgroundPlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <!-- WorkManager 的前台服务：下载要在后台继续必须声明 dataSync 类型。
+             缺了它 startForeground 会抛 IllegalArgumentException 直接崩溃，不要删。 -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:exported="false"
             android:foregroundServiceType="dataSync"
-            tools:replace="android:foregroundServiceType" />
+            tools:node="merge" />
+
     </application>
 
 </manifest>

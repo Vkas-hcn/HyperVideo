@@ -22,6 +22,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
 import com.vi.pl.videoplayerdemo.PlayerActivity
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.ads.AdMobManager
+import com.vi.pl.videoplayerdemo.ads.NativeAdPresenter
 import com.vi.pl.videoplayerdemo.local.FavoriteStore
 import com.vi.pl.videoplayerdemo.local.LocalVideoActions
 import com.vi.pl.videoplayerdemo.local.LocalVideoLoader
@@ -48,7 +50,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private var shortsSort = VideoSort.DATE_NEWEST
     private var pendingRename: Pair<Uri, String>? = null
     private var pendingDeleteUri: Uri? = null
-    private var pendingBackground: Pair<LocalVideoItem, List<LocalVideoItem>>? = null
+    private var nativeAdPresenter: NativeAdPresenter? = null
 
     private val mediaRequestLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -70,14 +72,6 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (!ok) Toast.makeText(requireContext(), R.string.rename_failed, Toast.LENGTH_SHORT).show()
         }
         showContent()
-    }
-
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        val request = pendingBackground
-        pendingBackground = null
-        if (granted && request != null) openVideo(request.first, request.second, background = true)
     }
 
     private val permissionLauncher = registerForActivityResult(
@@ -141,6 +135,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             }
         }
         updateContent()
+
+        // home_native：进入首页即加载，容器位于列表底部、导航栏上方。
+        nativeAdPresenter = NativeAdPresenter(
+            AdMobManager.NativePlacement.HOME,
+            view.findViewById(R.id.home_native_ad),
+        ).also { it.show() }
     }
 
     override fun onResume() {
@@ -149,6 +149,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             preferences.edit().putInt(PREF_DENIAL_COUNT, 0).apply()
             showContent()
         }
+        nativeAdPresenter?.show()
+    }
+
+    override fun onHiddenChanged(hidden: Boolean) {
+        super.onHiddenChanged(hidden)
+        if (!hidden) nativeAdPresenter?.show()
+    }
+
+    override fun onDestroyView() {
+        nativeAdPresenter?.release()
+        nativeAdPresenter = null
+        super.onDestroyView()
     }
 
     private fun bindPermissionSteps(view: View) {
@@ -285,25 +297,8 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }.show()
     }
 
-    private fun maybeRequestNotificationPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.POST_NOTIFICATIONS,
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!granted) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-    }
-
     private fun playInBackground(item: LocalVideoItem, playlist: List<LocalVideoItem>) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            openVideo(item, playlist, background = true)
-            return
-        }
-        pendingBackground = item to playlist
-        maybeRequestNotificationPermission()
+        openVideo(item, playlist, background = true)
     }
 
     private fun showFilter() {

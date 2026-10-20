@@ -191,4 +191,9 @@
     <string name="login_google_failed">Google sign-in failed</string>
     <string name="profile_guest_name">Guest</string>
     <string name="profile_guest_meta">Tap to log in</string>
+    <string name="download_notification_title">Downloading video</string>
+    <string name="download_notification_progress">%1$d%%</string>
+    <string name="download_notification_channel">Downloads</string>
+    <string name="download_failed">Download failed</string>
+    <string name="ad">AD</string>
 </resources>

@@ -9,7 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Gravity
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
@@ -197,10 +197,7 @@ class VideoBrowserActivity : AppCompatActivity() {
                 Toast.makeText(this, R.string.browser_video_not_ready, Toast.LENGTH_SHORT).show()
                 return@evaluateJavascript
             }
-            Toast.makeText(this, R.string.browser_quality_resolving, Toast.LENGTH_SHORT).apply {
-                setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, dp(96))
-                show()
-            }
+            Toast.makeText(this, R.string.browser_quality_resolving, Toast.LENGTH_SHORT).show()
             webView.evaluateJavascript(CURRENT_VIDEO_URL_SCRIPT) { encodedUrl ->
                 val resolved = encodedUrl.takeUnless { it == "null" }?.trim('"')
                     ?.replace("\\\\", "\\")?.replace("\\\"", "\"")
@@ -221,21 +218,30 @@ class VideoBrowserActivity : AppCompatActivity() {
                         val duration = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
                         val page = webView.url ?: url
                         val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
-                        DownloadQualityCoordinator.resolve(
-                            this,
-                            QualityDownloadRequest(
-                                url = url,
-                                sourcePageUrl = page,
-                                fallbackUrl = fallback,
-                                title = pageTitle,
-                                coverUrl = coverUrl,
-                                userAgent = if (youtube) "" else webView.settings.userAgentString,
-                                cookies = cookiesFor(page),
-                                referer = if (youtube) "" else page,
-                                durationSec = duration,
-                                sourceHeight = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0,
-                            ),
-                        )
+                        runCatching {
+                            DownloadQualityCoordinator.resolve(
+                                this,
+                                QualityDownloadRequest(
+                                    url = url,
+                                    sourcePageUrl = page,
+                                    fallbackUrl = fallback,
+                                    title = pageTitle,
+                                    coverUrl = coverUrl,
+                                    userAgent = if (youtube) "" else webView.settings.userAgentString,
+                                    cookies = cookiesFor(page),
+                                    referer = if (youtube) "" else page,
+                                    durationSec = duration,
+                                    sourceHeight = listOf(width, height).filter { it > 0 }.minOrNull() ?: 0,
+                                ),
+                            )
+                        }.onFailure { error ->
+                            Log.e(TAG, "start quality resolve failed", error)
+                            Toast.makeText(
+                                this@VideoBrowserActivity,
+                                R.string.browser_download_failed,
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
                     }
                 }
             }
@@ -353,19 +359,25 @@ class VideoBrowserActivity : AppCompatActivity() {
         val page = webView.url ?: url
         val youtube = VideoPlatform.fromUrl(page) == VideoPlatform.YOUTUBE
         val userAgent = if (youtube) "" else webView.settings.userAgentString
-        VideoDownloadRepository.enqueue(
-            this,
-            url,
-            sourcePageUrl = page,
-            title = title.ifBlank { webView.title }.orEmpty(),
-            coverUrl = coverUrl,
-            userAgent = userAgent,
-            cookies = cookiesFor(page),
-            referer = if (youtube) "" else page,
-            fallbackUrl = fallbackUrl,
-            maxHeight = maxHeight,
-        )
-        Toast.makeText(this, R.string.search_download_queued, Toast.LENGTH_SHORT).show()
+        runCatching {
+            VideoDownloadRepository.enqueue(
+                this,
+                url,
+                sourcePageUrl = page,
+                title = title.ifBlank { webView.title }.orEmpty(),
+                coverUrl = coverUrl,
+                userAgent = userAgent,
+                cookies = cookiesFor(page),
+                referer = if (youtube) "" else page,
+                fallbackUrl = fallbackUrl,
+                maxHeight = maxHeight,
+            )
+        }.onSuccess {
+            Toast.makeText(this, R.string.search_download_queued, Toast.LENGTH_SHORT).show()
+        }.onFailure { error ->
+            Log.e(TAG, "enqueue download failed", error)
+            Toast.makeText(this, R.string.browser_download_failed, Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun cookiesFor(url: String): String {
@@ -437,6 +449,7 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TAG = "VideoBrowser"
         private const val EXTRA_URL = "url"
         private const val PAGE_TIMEOUT_MS = 20_000L
         private const val WRITE_STORAGE_REQUEST = 701

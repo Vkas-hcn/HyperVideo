@@ -24,4 +24,5 @@
     <color name="vip_gradient_end">#FF552BE6</color>
     <color name="profile_menu_divider">#FF2A2C34</color>
     <color name="login_card">#FF1F222A</color>
+    <color name="notification_text">#DE000000</color>
 </resources>
