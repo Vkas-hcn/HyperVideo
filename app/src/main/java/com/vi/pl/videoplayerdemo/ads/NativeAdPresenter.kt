@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import com.google.android.gms.ads.nativead.AdChoicesView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
 import com.vi.pl.videoplayerdemo.R
@@ -107,6 +108,10 @@ class NativeAdPresenter(
         } else {
             ctaView.visibility = View.GONE
         }
+
+        // AdChoices 图标由 SDK 渲染到右上角占位，不注册会被判为素材未完整展示。
+        val adChoicesView = view.findViewById<AdChoicesView>(R.id.ad_choices)
+        view.setAdChoicesView(adChoicesView)
 
         // 旧实例在广告位取新实例时已销毁，这里只清理视图引用，保证同一时刻只有一条有效展示。
         if (displayedAd != null) {

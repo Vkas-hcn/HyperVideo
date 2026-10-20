@@ -1,7 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    id("com.google.gms.google-services")
-    id("com.google.firebase.crashlytics")
 }
 
 android {
@@ -54,8 +52,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.10.0")
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.messaging)
     implementation("androidx.work:work-runtime-ktx:2.10.4")
     implementation("androidx.room:room-runtime:2.7.2")
     implementation("androidx.room:room-ktx:2.7.2")
@@ -81,13 +77,8 @@ dependencies {
 
     implementation("com.adjust.sdk:adjust-android:5.6.1")
 
-    implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-crashlytics")
-    implementation("com.google.firebase:firebase-messaging")
-    implementation("com.google.firebase:firebase-config")
 
-    implementation("com.facebook.android:facebook-android-sdk:18.3.0")
+
 
     implementation("com.flux.tracksdk:tracksdk:3.0.3")
 

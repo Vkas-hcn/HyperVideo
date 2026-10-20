@@ -6,7 +6,6 @@ import android.os.Looper
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.nativead.NativeAd
-import com.google.android.gms.ads.nativead.NativeAdOptions
 import com.vi.pl.videoplayerdemo.hellohello.ref.AdTrackingHelper
 
 /**
@@ -129,16 +128,6 @@ class NativeAdSlot(
         currentRequestStartMs = System.currentTimeMillis()
         AdLogger.nativeWaterfallTry(slotName, currentIndex - 1, unit.name, adUnitId, ipKey)
 
-        val nativeAdOptions = NativeAdOptions.Builder()
-            .setRequestMultipleImages(true)
-            .setMediaAspectRatio(NativeAdOptions.NATIVE_MEDIA_ASPECT_RATIO_LANDSCAPE)
-            .setVideoOptions(
-                com.google.android.gms.ads.VideoOptions.Builder()
-                    .setStartMuted(true)
-                    .build()
-            )
-            .build()
-
         val loader = com.google.android.gms.ads.AdLoader.Builder(context, adUnitId)
             .forNativeAd { ad ->
                 if (token != loadToken) return@forNativeAd
@@ -170,7 +159,6 @@ class NativeAdSlot(
                 onFinished?.invoke()
                 postMain { listener?.onNativeAdLoaded(ad) }
             }
-            .withNativeAdOptions(nativeAdOptions)
             .withAdListener(object : com.google.android.gms.ads.AdListener() {
                 override fun onAdImpression() {
                     displayedShowStartMs = System.currentTimeMillis()

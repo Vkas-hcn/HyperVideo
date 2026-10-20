@@ -11,7 +11,6 @@ constraintlayout = "2.2.1"
 lifecycleProcess = "2.9.3"
 coroutines = "1.10.2"
 firebaseBom = "33.13.0"
-googleServices = "4.4.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,4 +28,3 @@ firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
