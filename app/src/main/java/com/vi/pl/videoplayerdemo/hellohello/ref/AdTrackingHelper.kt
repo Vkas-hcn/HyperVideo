@@ -13,7 +13,9 @@ import com.flux.tracksdk.model.TrackPolicy
 import com.flux.tracksdk.utils.UsdFromAdMicros
 import com.google.android.gms.ads.AdValue
 import com.google.android.gms.ads.ResponseInfo
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.vi.pl.videoplayerdemo.BuildConfig
+import com.vi.pl.videoplayerdemo.HyperVideoApplication
 import java.util.Locale.getDefault
 import java.util.TimeZone
 import java.util.UUID
@@ -110,6 +112,17 @@ object AdTrackingHelper {
         adType: String,
         posId: String
     ) {
+        //Firebase
+        runCatching {
+            putFirebaseAdRevenue(
+                HyperVideoApplication.get(),
+                event,
+                revenue,
+                currencyCode,
+            )
+        }.onFailure {
+            Log.e(TAG, "trackRevenueEvent Firebase failed: $event", it)
+        }
         //BI
         runCatching {
             TrackSDK.trackAdRevenue(revenue)
@@ -165,6 +178,8 @@ object AdTrackingHelper {
         revenue: Double,
         currencyCode: String = "USD"
     ) {
+        putFirebaseAdRevenue(context, event, revenue, currencyCode)
+
         runCatching {
             TrackSDK.track(event, null, TrackPolicy.IMMEDIATE)
             Log.d(TAG, "trackValueEvent: $event revenue=$revenue currency=$currencyCode")
@@ -196,6 +211,22 @@ object AdTrackingHelper {
             "ad_impression_revenue" -> "4rfcdo"
             "total_ads_revenue_001" -> "g06m0y"
             else -> null
+        }
+    }
+    fun putFirebaseAdRevenue(
+        context: Context,
+        event: String,
+        revenue: Double,
+        currencyCode: String = "USD",
+    ) {
+        runCatching {
+            val bundle = Bundle().apply {
+                putDouble(FirebaseAnalytics.Param.VALUE, revenue)
+                putString(FirebaseAnalytics.Param.CURRENCY, currencyCode)
+            }
+            FirebaseAnalytics.getInstance(context).logEvent(event, bundle)
+        }.onFailure {
+            Log.e(TAG, "trackRevenueEvent failed: $event", it)
         }
     }
 }
