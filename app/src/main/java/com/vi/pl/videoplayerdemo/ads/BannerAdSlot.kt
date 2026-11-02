@@ -16,6 +16,7 @@ import com.google.android.gms.ads.AdValue
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.OnPaidEventListener
+import com.google.android.ump.UserMessagingPlatform
 import com.vi.pl.videoplayerdemo.hellohello.ref.AdTrackingHelper
 
 /**
@@ -345,7 +346,7 @@ class BannerAdSlot(
                 AdLogger.interstitialClosed(label(mode))
             }
         }
-        adView.loadAd(bannerRequest(mode == BannerMode.COLLAPSIBLE))
+        adView.loadAd(bannerRequest(adContext, mode == BannerMode.COLLAPSIBLE))
     }
 
     private fun closeDisplayed() {
@@ -386,12 +387,20 @@ class BannerAdSlot(
             return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, widthDp)
         }
 
-        private fun bannerRequest(collapsible: Boolean): AdRequest {
-            if (!collapsible) return AdRequest.Builder().build()
-            val extras = Bundle().apply { putString("collapsible", "bottom") }
+        private fun bannerRequest(context: Context, collapsible: Boolean): AdRequest {
+            val extras = Bundle().apply {
+                if (collapsible) putString("collapsible", "bottom")
+                if (nonPersonalized(context)) putString("npa", "1")
+            }
+            if (extras.isEmpty) return AdRequest.Builder().build()
             return AdRequest.Builder()
                 .addNetworkExtrasBundle(AdMobAdapter::class.java, extras)
                 .build()
         }
+
+        /** UMP 未授权时按非个性化请求加载（对齐 Efile applyNonPersonalizedOnly）。 */
+        private fun nonPersonalized(context: Context): Boolean = runCatching {
+            !UserMessagingPlatform.getConsentInformation(context).canRequestAds()
+        }.getOrDefault(false)
     }
 }

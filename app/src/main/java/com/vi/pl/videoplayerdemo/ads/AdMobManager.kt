@@ -2,10 +2,12 @@ package com.vi.pl.videoplayerdemo.ads
 
 import android.app.Activity
 import android.content.Context
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.ViewGroup
 import android.view.View
+import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdValue
@@ -18,14 +20,15 @@ import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.nativead.NativeAd
+import com.google.android.ump.UserMessagingPlatform
 import com.vi.pl.videoplayerdemo.hellohello.ref.AdTrackingHelper
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** Process-wide AdMob facade. It deliberately has no VPN or network-model dependency. */
 object AdMobManager {
     enum class NativePlacement { HOME, CONNECT }
-    enum class InterstitialPlacement(val id: String, val usesOpenCap: Boolean = false) {
-        GUIDE_1("inters_guide_1", true), GUIDE_2("inters_guide_2", true),
+    enum class InterstitialPlacement(val id: String) {
+        GUIDE_1("inters_guide_1"), GUIDE_2("inters_guide_2"),
         HOME("inters_home"), BACK("inters_back"), SEARCH_BACK("search_inters_back")
     }
 
@@ -47,6 +50,8 @@ object AdMobManager {
     private var config = AdConfig()
     private var configJson = ""
     private var guideShown = false
+    private val retryTasks = mutableMapOf<String, Runnable>()
+    private val retryCounts = mutableMapOf<String, Int>()
     private val bannerSlot = BannerAdSlot("bar_banner", main)
     private val bannerObservers = BannerAdSlot.BannerMode.entries.associateWith { CopyOnWriteArrayList<AdLoadListener>() }
 
@@ -149,10 +154,11 @@ object AdMobManager {
         configJson = raw
         config = parsed
         AdLogger.configRefreshed(parsed.enabled)
-        if (old.intersBackConfig != parsed.intersBackConfig) { openAd = null; openLoadedAt = 0L; openLoading = false }
+        if (old.intersBackConfig != parsed.intersBackConfig) { openAd = null; openLoadedAt = 0L; openLoading = false; clearRetry(OPEN_SLOT) }
         InterstitialPlacement.entries.forEach { placement ->
             if (old.configFor(placement) != parsed.configFor(placement)) {
                 slots.getValue(placement).apply { ad = null; loadedAt = 0L; loading = false; showing = false }
+                clearRetry(placement.id)
             }
         }
         if (old.nativeCommonConfig != parsed.nativeCommonConfig) nativeSlots[NativePlacement.CONNECT]?.clear()
@@ -174,7 +180,7 @@ object AdMobManager {
             else -> "NOT_LOADED"
         }
         AdLogger.interstitialLoadRequest(OPEN_SLOT, state)
-        if (!canLoad(config.intersBackConfig, listener, OPEN_SLOT) || !InterstitialDailyCapStore.canLoadOrShow(context, config.openDailyLimit, OPEN_SLOT) || openLoading || validOpen()) {
+        if (!canLoad(config.intersBackConfig, listener, OPEN_SLOT) || fullscreenCapBlocked(context, OPEN_SLOT) || openLoading || validOpen()) {
             if (validOpen()) { AdLogger.interstitialCacheHit(OPEN_SLOT); listener?.onAdLoaded() }
             return@onMain
         }
@@ -188,7 +194,7 @@ object AdMobManager {
         val unit = units[index]
         AdLogger.interstitialWaterfallTry(index, unit.name, unit.id, OPEN_SLOT)
         runCatching {
-            AppOpenAd.load(context, unit.id, AdRequest.Builder().build(), object : AppOpenAd.AppOpenAdLoadCallback() {
+            AppOpenAd.load(context, unit.id, adRequest(), object : AppOpenAd.AppOpenAdLoadCallback() {
                 override fun onAdLoaded(ad: AppOpenAd) {
                     onMain {
                         ad.onPaidEventListener = paidListener(
@@ -197,6 +203,7 @@ object AdMobManager {
                         openAd = ad
                         openLoadedAt = System.currentTimeMillis()
                         openLoading = false
+                        clearRetry(OPEN_SLOT)
                         AdLogger.interstitialLoaded(unit.name, unit.id, OPEN_SLOT)
                         listener?.onAdLoaded()
                     }
@@ -209,15 +216,26 @@ object AdMobManager {
         }
     }
 
-    private fun failOpen(listener: AdLoadListener?) { openLoading = false; openAd = null; AdLogger.interstitialAllFailed(OPEN_SLOT); listener?.onAdFailedToLoad(LOAD_FAILED) }
+    private fun failOpen(listener: AdLoadListener?) {
+        openLoading = false
+        openAd = null
+        AdLogger.interstitialAllFailed(OPEN_SLOT)
+        listener?.onAdFailedToLoad(LOAD_FAILED)
+        scheduleRetry(OPEN_SLOT) { appContext?.let { loadOpenAd(it) } }
+    }
     fun isOpenAdLoaded(): Boolean = validOpen()
 
     fun showOpenAd(activity: Activity, listener: AdShowListener? = null): Boolean {
         AdLogger.interstitialShowRequest(OPEN_SLOT, if (validOpen()) "LOADED" else "NOT_LOADED", null)
-        if (!validOpen() || !canShow(activity, listener, OPEN_SLOT) || !InterstitialDailyCapStore.canLoadOrShow(activity, config.openDailyLimit, OPEN_SLOT)) return false
+        if (!validOpen() || !canShow(activity, listener, OPEN_SLOT) || fullscreenCapBlocked(activity, OPEN_SLOT)) return false
         val ad = openAd ?: return false
         openShowing = true; openAd = null; openLoadedAt = 0L
-        ad.fullScreenContentCallback = callback(OPEN_SLOT, listener, onShow = { openShowing = true; InterstitialDailyCapStore.onPresented(activity, config.openDailyLimit, OPEN_SLOT) }, onClose = { openShowing = false; loadOpenAd(activity.applicationContext) }, onFail = { openShowing = false })
+        ad.fullScreenContentCallback = callback(
+            OPEN_SLOT, listener,
+            onShow = { openShowing = true; FullscreenLimitStore.recordFullscreenImpression(activity) },
+            onClose = { openShowing = false; FullscreenLimitStore.recordFullscreenClosed(activity); loadOpenAd(activity.applicationContext) },
+            onFail = { openShowing = false; FullscreenLimitStore.recordFullscreenClosed(activity) },
+        )
         return runCatching { ad.show(activity); true }.getOrElse { openShowing = false; AdLogger.adShowFailed(OPEN_SLOT, it.message ?: NOT_LOADED); listener?.onAdShowFailed(it.message ?: NOT_LOADED); false }
     }
 
@@ -229,8 +247,7 @@ object AdMobManager {
             else -> "NOT_LOADED"
         }
         AdLogger.interstitialLoadRequest(placement.id, state)
-        val cap = if (placement.usesOpenCap) config.openDailyLimit else config.interstitialDailyLimit
-        if (!canLoad(configFor(placement), listener, placement.id) || !InterstitialDailyCapStore.canLoadOrShow(context, cap, placement.id) || slot.loading || valid(slot)) {
+        if (!canLoad(configFor(placement), listener, placement.id) || fullscreenCapBlocked(context, placement.id) || slot.loading || valid(slot)) {
             if (valid(slot)) { AdLogger.interstitialCacheHit(placement.id); listener?.onAdLoaded() }
             return@onMain
         }
@@ -240,11 +257,17 @@ object AdMobManager {
     private fun loadInterstitialWaterfall(context: Context, placement: InterstitialPlacement, index: Int, listener: AdLoadListener?) {
         val units = configFor(placement)?.adUnits.orEmpty()
         val slot = slots.getValue(placement)
-        if (index >= units.size) { slot.loading = false; AdLogger.interstitialAllFailed(placement.id); listener?.onAdFailedToLoad(LOAD_FAILED); return }
+        if (index >= units.size) {
+            slot.loading = false
+            AdLogger.interstitialAllFailed(placement.id)
+            listener?.onAdFailedToLoad(LOAD_FAILED)
+            scheduleRetry(placement.id) { appContext?.let { loadInterstitial(it, placement) } }
+            return
+        }
         val unit = units[index]
         AdLogger.interstitialWaterfallTry(index, unit.name, unit.id, placement.id)
         runCatching {
-            InterstitialAd.load(context, unit.id, AdRequest.Builder().build(), object : InterstitialAdLoadCallback() {
+            InterstitialAd.load(context, unit.id, adRequest(), object : InterstitialAdLoadCallback() {
                 override fun onAdLoaded(ad: InterstitialAd) {
                     onMain {
                         if (placement == InterstitialPlacement.GUIDE_1 || placement == InterstitialPlacement.GUIDE_2) {
@@ -255,6 +278,7 @@ object AdMobManager {
                         slot.ad = ad
                         slot.loadedAt = System.currentTimeMillis()
                         slot.loading = false
+                        clearRetry(placement.id)
                         AdLogger.interstitialLoaded(unit.name, unit.id, placement.id)
                         listener?.onAdLoaded()
                     }
@@ -270,11 +294,15 @@ object AdMobManager {
     fun isInterstitialLoaded(placement: InterstitialPlacement): Boolean = valid(slots.getValue(placement))
     fun showInterstitial(activity: Activity, placement: InterstitialPlacement, listener: AdShowListener? = null): Boolean {
         val slot = slots.getValue(placement); val ad = slot.ad
-        val cap = if (placement.usesOpenCap) config.openDailyLimit else config.interstitialDailyLimit
         AdLogger.interstitialShowRequest(placement.id, if (valid(slot)) "LOADED" else "NOT_LOADED", null)
-        if (!valid(slot) || ad == null || !canShow(activity, listener, placement.id) || !InterstitialDailyCapStore.canLoadOrShow(activity, cap, placement.id)) return false
+        if (!valid(slot) || ad == null || !canShow(activity, listener, placement.id) || fullscreenCapBlocked(activity, placement.id)) return false
         slot.ad = null; slot.loadedAt = 0L; slot.showing = true
-        ad.fullScreenContentCallback = callback(placement.id, listener, onShow = { InterstitialDailyCapStore.onPresented(activity, cap, placement.id) }, onClose = { slot.showing = false; loadInterstitial(activity.applicationContext, placement) }, onFail = { slot.showing = false })
+        ad.fullScreenContentCallback = callback(
+            placement.id, listener,
+            onShow = { FullscreenLimitStore.recordFullscreenImpression(activity) },
+            onClose = { slot.showing = false; FullscreenLimitStore.recordFullscreenClosed(activity); loadInterstitial(activity.applicationContext, placement) },
+            onFail = { slot.showing = false; FullscreenLimitStore.recordFullscreenClosed(activity) },
+        )
         return runCatching { ad.show(activity); true }.getOrElse { slot.showing = false; AdLogger.adShowFailed(placement.id, it.message ?: NOT_LOADED); listener?.onAdShowFailed(it.message ?: NOT_LOADED); false }
     }
 
@@ -305,6 +333,10 @@ object AdMobManager {
     private fun canShow(activity: Activity, listener: AdShowListener?, slot: String): Boolean {
         if (!appForeground) {
             AdLogger.interstitialShowBlocked("app_background", slot)
+            return false
+        }
+        if (fullscreenIntervalRemainingMillis() > 0L) {
+            AdLogger.interstitialShowBlocked("fullscreen_min_interval", slot)
             return false
         }
         if (isAnyAdShowing()) {
@@ -346,6 +378,84 @@ object AdMobManager {
                 context.applicationContext, adValue, adType, posId,
             )
         }
+    }
+
+    /** 启动页预热：首帧前即可发起开屏加载，不等待 UMP 完成（对齐 Efile warmupSplashAd）。 */
+    fun warmupStartupOpen() = onMain {
+        runWhenInitialized { initialized ->
+            if (initialized) appContext?.let { loadOpenAd(it) }
+        }
+    }
+
+    /** 热启动三路缓存查询：返回 开屏→GUIDE_1→GUIDE_2 中第一份有效缓存（未达共享上限）的 slot，无则 null。 */
+    fun startupCachedSlot(): String? {
+        if (fullscreenCapReached()) return null
+        return when {
+            validOpen() -> OPEN_SLOT
+            valid(slots.getValue(InterstitialPlacement.GUIDE_1)) -> InterstitialPlacement.GUIDE_1.id
+            valid(slots.getValue(InterstitialPlacement.GUIDE_2)) -> InterstitialPlacement.GUIDE_2.id
+            else -> null
+        }
+    }
+
+    fun fullscreenCapReached(): Boolean =
+        appContext?.let { FullscreenLimitStore.isFullscreenReached(it, config.fullscreenDailyLimit) } ?: false
+
+    /** 距下一次允许展示全屏还差多少毫秒；0 表示已满足间隔。 */
+    fun fullscreenIntervalRemainingMillis(): Long {
+        val ctx = appContext ?: return 0L
+        return FullscreenLimitStore.fullscreenIntervalRemainingMillis(
+            ctx, System.currentTimeMillis(), config.fullscreenMinIntervalMs,
+        )
+    }
+
+    private fun fullscreenCapBlocked(context: Context?, slot: String): Boolean {
+        if (context == null) return false
+        if (!FullscreenLimitStore.isFullscreenReached(context, config.fullscreenDailyLimit)) return false
+        AdLogger.capBlocked(slot, FullscreenLimitStore.getTodayCount(context), config.fullscreenDailyLimit)
+        return true
+    }
+
+    /** 加载失败按配置的重试序列（30/60/120s）最多重试 3 次；成功或配置变更时取消。 */
+    private fun scheduleRetry(slot: String, reload: () -> Unit) {
+        val delays = config.adRetryDelaysMs
+        val attempt = retryCounts[slot] ?: 0
+        if (attempt >= delays.size) {
+            retryCounts.remove(slot)
+            AdLogger.adRetryGivenUp(slot)
+            return
+        }
+        cancelRetryTask(slot)
+        val task = Runnable {
+            retryTasks.remove(slot)
+            if (!isAdEnabled()) return@Runnable
+            reload()
+        }
+        retryTasks[slot] = task
+        main.postDelayed(task, delays[attempt])
+        retryCounts[slot] = attempt + 1
+        AdLogger.adRetryScheduled(slot, attempt + 1, delays[attempt])
+    }
+
+    private fun cancelRetryTask(slot: String) {
+        retryTasks.remove(slot)?.let(main::removeCallbacks)
+    }
+
+    private fun clearRetry(slot: String) {
+        retryCounts.remove(slot)
+        cancelRetryTask(slot)
+    }
+
+    /** UMP 未授权时按非个性化请求加载（对齐 Efile applyNonPersonalizedOnly）。 */
+    private fun adRequest(): AdRequest {
+        val context = appContext ?: return AdRequest.Builder().build()
+        val canRequestAds = runCatching {
+            UserMessagingPlatform.getConsentInformation(context).canRequestAds()
+        }.getOrDefault(true)
+        if (canRequestAds) return AdRequest.Builder().build()
+        return AdRequest.Builder()
+            .addNetworkExtrasBundle(AdMobAdapter::class.java, Bundle().apply { putString("npa", "1") })
+            .build()
     }
 
     private fun onMain(block: () -> Unit) { if (Looper.myLooper() == Looper.getMainLooper()) block() else main.post(block) }

@@ -89,6 +89,12 @@ object AdLogger {
     fun adShowFailed(slot: String, reason: String) =
         w("${prefix(slot)}展示失败,原因:${reasonText(reason)}")
 
+    fun adRetryScheduled(slot: String, attempt: Int, delayMs: Long) =
+        d("${prefix(slot)}加载失败重试已排程,第 ${attempt} 次,延迟 ${delayMs / 1000} 秒")
+
+    fun adRetryGivenUp(slot: String) =
+        w("${prefix(slot)}重试已放弃,原因:重试次数已达上限")
+
     fun adClicked(slot: String) = d("${prefix(slot)}被点击")
 
     // ---------------- 频次控制 ----------------
@@ -206,6 +212,7 @@ object AdLogger {
             "Failed to load all banner ad units" -> "全部横幅广告单元加载失败"
             "Banner ad unit missing" -> "未配置横幅广告单元"
             "already_loading" -> "已有加载任务进行中"
+            "fullscreen_min_interval" -> "距上次全屏广告关闭不足最小间隔"
             "cache_discarded" -> "缓存已丢弃"
             "SDK exception" -> "SDK 调用异常"
             else -> reason

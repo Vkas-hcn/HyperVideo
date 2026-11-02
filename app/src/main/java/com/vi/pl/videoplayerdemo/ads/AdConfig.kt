@@ -1,15 +1,21 @@
 package com.vi.pl.videoplayerdemo.ads
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class AdConfig(
     val enabled: Boolean = false,
     val adsDebugMode: Boolean = false,
     val nativeDailyLimit: Int = 0,
-    val interstitialDailyLimit: Int = 0,
-    val openDailyLimit: Int = 0,
     val bannerDailyLimit: Int = 0,
+    /** 开屏等待/加载窗口（毫秒），由配置 ad_frequency_control.inters_open_loadtime 控制。 */
     val intersOpenLoadTime: Int = 10000,
+    /** 开屏+插屏共享的每日展示上限（对齐 Efile §7.8-4，缺省 10）。 */
+    val fullscreenDailyLimit: Int = 10,
+    /** 任意两次全屏广告之间的最小间隔毫秒（对齐 Efile §7.8-3，缺省 1000）。 */
+    val fullscreenMinIntervalMs: Long = 1000L,
+    /** 加载失败重试间隔序列（对齐 Efile §7.8-2）。 */
+    val adRetryDelaysMs: List<Long> = listOf(30_000L, 60_000L, 120_000L),
     val intersBackConfig: AdTypeConfig? = null,
     val intersGuide1Config: AdTypeConfig? = null,
     val intersGuide2Config: AdTypeConfig? = null,
@@ -27,6 +33,8 @@ data class AdUnit(val id: String, val name: String)
 enum class AdState { NOT_LOADED, LOADING, LOADED, SHOWING, FAILED, CLOSED }
 
 object AdConfigSerializer {
+    private val DEFAULT_RETRY_DELAYS_MS = listOf(30_000L, 60_000L, 120_000L)
+
     fun toJson(config: AdConfig): String = JSONObject().apply {
         put("ad_switch_control", JSONObject().apply {
             put("enable_open_back", config.intersBackConfig?.enabled == true)
@@ -52,8 +60,9 @@ object AdConfigSerializer {
         })
         put("ad_frequency_control", JSONObject().apply {
             put("max_native_display_count", config.nativeDailyLimit)
-            put("max_interstitial_display_count", config.interstitialDailyLimit)
-            put("max_open_display_count", config.openDailyLimit)
+            put("max_fullscreen_display_count", config.fullscreenDailyLimit)
+            put("fullscreen_min_interval_ms", config.fullscreenMinIntervalMs)
+            put("ad_retry_ms", JSONArray(config.adRetryDelaysMs))
             put("inters_open_loadtime", config.intersOpenLoadTime)
             put("max_banner_display_count", config.bannerDailyLimit)
         })
@@ -75,15 +84,15 @@ object AdConfigSerializer {
         val back = switches.optBoolean("enable_inters_back")
         val searchBack = switches.optBoolean("enable_search_inters_back")
         val banner = switches.optBoolean("enable_bar_banner")
-        val interstitialLimit = frequency.optInt("max_interstitial_display_count", 0).coerceAtLeast(0)
         return AdConfig(
             enabled = open || homeNative || commonNative || guide1 || guide2 || home || back || searchBack || banner,
             adsDebugMode = debug.optBoolean("is_debug_mode"),
             nativeDailyLimit = frequency.optInt("max_native_display_count", 0).coerceAtLeast(0),
-            interstitialDailyLimit = interstitialLimit,
-            openDailyLimit = frequency.optInt("max_open_display_count", interstitialLimit).coerceAtLeast(0),
             bannerDailyLimit = frequency.optInt("max_banner_display_count", 0).coerceAtLeast(0),
             intersOpenLoadTime = frequency.optInt("inters_open_loadtime", 10000).coerceAtLeast(0),
+            fullscreenDailyLimit = frequency.optInt("max_fullscreen_display_count", 10).coerceAtLeast(0),
+            fullscreenMinIntervalMs = frequency.optLong("fullscreen_min_interval_ms", 1000L).coerceAtLeast(0L),
+            adRetryDelaysMs = parseRetryDelays(frequency.optJSONArray("ad_retry_ms")),
             intersBackConfig = type(open, ids, "open_back"),
             intersGuide1Config = type(guide1, ids, "inters_guide_1"),
             intersGuide2Config = type(guide2, ids, "inters_guide_2"),
@@ -105,4 +114,12 @@ object AdConfigSerializer {
         .map(String::trim)
         .filter(String::isNotBlank)
         .mapIndexed { index, id -> AdUnit(id, "${prefix}_${index + 1}") }
+
+    private fun parseRetryDelays(array: JSONArray?): List<Long> {
+        if (array == null || array.length() == 0) return DEFAULT_RETRY_DELAYS_MS
+        val parsed = (0 until array.length()).mapNotNull { index ->
+            runCatching { array.optLong(index, -1L) }.getOrDefault(-1L).takeIf { it > 0L }
+        }
+        return parsed.ifEmpty { DEFAULT_RETRY_DELAYS_MS }
+    }
 }

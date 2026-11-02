@@ -1,11 +1,14 @@
 package com.vi.pl.videoplayerdemo.ads
 
 import android.content.Context
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.nativead.NativeAd
+import com.google.android.ump.UserMessagingPlatform
 import com.vi.pl.videoplayerdemo.hellohello.ref.AdTrackingHelper
 
 /**
@@ -191,7 +194,7 @@ class NativeAdSlot(
                 }
             })
             .build()
-        loader.loadAd(AdRequest.Builder().build())
+        loader.loadAd(nativeRequest(context))
     }
 
     fun destroy() {
@@ -217,6 +220,17 @@ class NativeAdSlot(
         displayedWrapper?.ad?.destroy()
         displayedWrapper = null
         displayedShowStartMs = 0L
+    }
+
+    /** UMP 未授权时按非个性化请求加载（对齐 Efile applyNonPersonalizedOnly）。 */
+    private fun nativeRequest(context: Context): AdRequest {
+        val nonPersonalized = runCatching {
+            !UserMessagingPlatform.getConsentInformation(context).canRequestAds()
+        }.getOrDefault(false)
+        if (!nonPersonalized) return AdRequest.Builder().build()
+        return AdRequest.Builder()
+            .addNetworkExtrasBundle(AdMobAdapter::class.java, Bundle().apply { putString("npa", "1") })
+            .build()
     }
 
     private fun postMain(block: () -> Unit) {

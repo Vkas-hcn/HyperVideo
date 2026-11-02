@@ -65,14 +65,14 @@ object LocalConfig {
   },
   "ad_config": {
     "ad_unit_ids": {
-      "open_back": "ca-app-pub-1725671068291893/2356051586",
+      "open_back": "ca-app-pub-3940256099942544/9257395921",
       "bar_banner": "",
-      "home_native": "ca-app-pub-1725671068291893/4475782613",
+      "home_native": "ca-app-pub-3940256099942544/2247696110",
       "inters_back": "",
       "inters_home": "",
       "connect_native": "",
-      "inters_guide_1": "",
-      "inters_guide_2": "",
+      "inters_guide_1": "ca-app-pub-3940256099942544/1033173712",
+      "inters_guide_2": "ca-app-pub-3940256099942544/1033173712",
       "search_inters_back": ""
     },
     "ad_debug_settings": {
@@ -85,16 +85,17 @@ object LocalConfig {
       "enable_inters_back": false,
       "enable_inters_home": false,
       "enable_connect_native": false,
-      "enable_inters_guide_1": false,
-      "enable_inters_guide_2": false,
+      "enable_inters_guide_1": true,
+      "enable_inters_guide_2": true,
       "enable_search_inters_back": false
     },
     "ad_frequency_control": {
       "inters_open_loadtime": 10000,
-      "max_open_display_count": 1000,
+      "max_fullscreen_display_count": 20,
+      "fullscreen_min_interval_ms": 500,
+      "ad_retry_ms": [30000, 60000, 120000],
       "max_banner_display_count": 10,
-      "max_native_display_count": 5000,
-      "max_interstitial_display_count": 10
+      "max_native_display_count": 5000
     }
   }
 }

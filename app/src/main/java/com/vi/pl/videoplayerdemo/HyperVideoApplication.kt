@@ -3,9 +3,13 @@ package com.vi.pl.videoplayerdemo
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Application
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -26,10 +30,14 @@ import com.vi.pl.videoplayerdemo.ui.GuideActivity
 import java.lang.ref.WeakReference
 
 class HyperVideoApplication : Application(), DefaultLifecycleObserver {
-    private var hotStartReady = false
+    private var hasSeenForeground = false
+    private var hotStartArmed = false
+    private var pendingArmRunnable: Runnable? = null
+    private val contentActivities = LinkedHashSet<Activity>()
     private var topActivity: WeakReference<Activity>? = null
     private var adActivity: WeakReference<Activity>? = null
     @Volatile private var processInForeground = true
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         instance = this
@@ -48,32 +56,100 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     }
 
     override fun onStart(owner: LifecycleOwner) {
+        cancelPendingArm()
         processInForeground = true
         AdMobManager.updateAppForegroundState(true)
-        if (!hotStartReady) return
-        hotStartReady = false
-        launchGuideForHotStart()
+        val shouldLaunch = hotStartArmed && hasSeenForeground
+        hotStartArmed = false
+        hasSeenForeground = true
+        if (!shouldLaunch) return
+        mainHandler.post {
+            if (!processInForeground) return@post
+            launchReturnToGuide()
+        }
     }
 
     override fun onStop(owner: LifecycleOwner) {
         processInForeground = false
         AdMobManager.updateAppForegroundState(false)
-        hotStartReady = true
         adActivity?.get()
             ?.takeIf { !it.isFinishing && !it.isDestroyed }
             ?.finish()
-        Log.d(TAG, "Hot start is ready")
+        // 冷启动尚未进过前台不武装（对齐 Efile HotStartState.canArmOnBackground）
+        if (!hasSeenForeground) {
+            Log.d(TAG, "启动广告判定=进入后台 热启动不武装 原因=冷启动尚未进过前台")
+            return
+        }
+        scheduleArm()
     }
 
-    private fun launchGuideForHotStart() {
-        val intent = GuideActivity.createHotStartIntent(this)
-        val currentActivity = topActivity?.get()
+    /** 退后台 300ms 防抖后再武装；期间回前台则取消（对齐 Efile §7.9-1）。 */
+    private fun scheduleArm() {
+        cancelPendingArm()
+        pendingArmRunnable = Runnable {
+            pendingArmRunnable = null
+            if (processInForeground) return@Runnable
+            hotStartArmed = true
+            finishNonWhitelisted()
+            Log.d(TAG, "启动广告判定=热启动已武装 防抖毫秒=$HOT_START_DEBOUNCE_MS")
+        }.also { mainHandler.postDelayed(it, HOT_START_DEBOUNCE_MS) }
+    }
+
+    private fun cancelPendingArm() {
+        pendingArmRunnable?.let(mainHandler::removeCallbacks)
+        pendingArmRunnable = null
+    }
+
+    /** 回前台重置：结束启动链以外的页面（白名单：MainActivity、GuideActivity）。 */
+    private fun finishNonWhitelisted() {
+        contentActivities.toList().forEach { activity ->
+            if (activity.isFinishing || activity.isDestroyed || activity.isChangingConfigurations) {
+                return@forEach
+            }
+            if (activity is MainActivity || activity is GuideActivity) {
+                return@forEach
+            }
+            runCatching { activity.finish() }
+                .onSuccess { Log.d(TAG, "回前台重置：结束页面=" + activity.javaClass.simpleName) }
+                .onFailure { error ->
+                    Log.w(TAG, "回前台重置：结束页面失败 " + activity.javaClass.simpleName, error)
+                }
+        }
+    }
+
+    /** 回前台清栈重置：CLEAR_TASK 打开启动页，广告结束落首页（无条件生效，无留存策略开关）。 */
+    private fun launchReturnToGuide() {
+        // 屏幕未点亮不重开屏（对齐 Efile §7.9-5）
+        val power = getSystemService(PowerManager::class.java)
+        if (power != null && !power.isInteractive) {
+            Log.d(TAG, "热启动跳过 原因=屏幕未点亮")
+            return
+        }
+        val current = topActivity?.get()
             ?.takeIf { !it.isFinishing && !it.isDestroyed }
+        if (current is GuideActivity) {
+            Log.d(TAG, "热启动跳过 原因=当前已是启动页")
+            return
+        }
         runCatching {
-            if (currentActivity != null) currentActivity.startActivity(intent)
-            else startActivity(intent)
-            Log.d(TAG, "Hot start launched GuideActivity")
-        }.onFailure { Log.w(TAG, "Hot start GuideActivity launch failed", it) }
+            startActivity(GuideActivity.createReturnToMainIntent(this))
+            Log.d(TAG, "回前台重置：CLEAR_TASK 打开启动页")
+        }.onFailure { error ->
+            Log.w(TAG, "回前台重置启动失败，回退普通热启动", error)
+            launchPlainHotStart()
+        }
+    }
+
+    /** 普通热启动（回退路径）：仅 SINGLE_TOP 压栈，广告结束后回原页面。 */
+    private fun launchPlainHotStart() {
+        val current = topActivity?.get()
+            ?.takeIf { !it.isFinishing && !it.isDestroyed }
+        if (current is GuideActivity) return
+        val intent = GuideActivity.createHotStartIntent(this)
+        runCatching {
+            if (current != null) current.startActivity(intent)
+            else startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { Log.w(TAG, "热启动启动页打开失败", it) }
     }
 
     fun isAppForeground(): Boolean = processInForeground
@@ -86,15 +162,21 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         override fun onActivityStopped(activity: Activity) = Unit
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
         override fun onActivityDestroyed(activity: Activity) {
+            contentActivities.remove(activity)
             if (topActivity?.get() === activity) topActivity = null
             if (adActivity?.get() === activity) adActivity = null
         }
 
         private fun update(activity: Activity) {
-            if (activity is AdActivity) adActivity = WeakReference(activity)
-            else topActivity = WeakReference(activity)
+            if (activity is AdActivity) {
+                adActivity = WeakReference(activity)
+            } else {
+                topActivity = WeakReference(activity)
+                contentActivities.add(activity)
+            }
         }
     }
+
     fun initTrackSdk() {
         val trackConfig = TrackConfig.Builder(this)
             .baseUrl("https://bi.googletogoogle.com")
@@ -141,8 +223,10 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         Adjust.initSdk(config)
         Adjust.endFirstSessionDelay()
     }
+
     companion object {
         private const val TAG = "HyperVideoApp"
+        private const val HOT_START_DEBOUNCE_MS = 300L
         private lateinit var instance: HyperVideoApplication
         fun get(): HyperVideoApplication = instance
     }
