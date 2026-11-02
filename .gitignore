@@ -15,3 +15,9 @@
 local.properties
 /app/test/
 /app/src/test/
+
+# Firebase 真实工程配置不进仓库（接入需求 F04 / §11 T05）。
+# 真实文件放本地或走 CI 注入；新 clone 请从 app/google-services.json.example 复制。
+/app/google-services.json
+# 交付包（.aab 里带编译后的 google_api_key）同样不入库。
+/app/release/

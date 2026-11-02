@@ -16,6 +16,7 @@ import com.google.android.gms.ads.ResponseInfo
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.vi.pl.videoplayerdemo.BuildConfig
 import com.vi.pl.videoplayerdemo.HyperVideoApplication
+import com.vi.pl.videoplayerdemo.LocalConfig
 import java.util.Locale.getDefault
 import java.util.TimeZone
 import java.util.UUID
@@ -30,6 +31,14 @@ object AdTrackingHelper {
     private val revenueLock = Any()
     private const val PREF_NAME = "ad_tracking_prefs"
     private const val KEY_TOTAL_ADS_REVENUE = "total_ads_revenue_001_accumulated"
+
+    /**
+     * 允许出 Firebase 的事件白名单。
+     *
+     * 接入需求 §2.5 / §8.10：`total_ads_revenue_001` 的出口只有 BI 与 Adjust，
+     * 不允许上报给 Firebase。白名单放在唯一出口上做兜底，新增事件必须先登记。
+     */
+    private val FIREBASE_EVENTS = setOf("ad_impression_revenue")
 
     /**
      * 广告类型
@@ -143,7 +152,6 @@ object AdTrackingHelper {
             val totalRevenue = prefs.getDouble(KEY_TOTAL_ADS_REVENUE, 0.0) + revenue
             if (totalRevenue >= 0.01) {
                 trackValueEvent(
-                    context = context,
                     event = "total_ads_revenue_001",
                     revenue = totalRevenue,
                     currencyCode = "USD"
@@ -172,14 +180,12 @@ object AdTrackingHelper {
         return Double.fromBits(getLong(key, defaultValue.toBits()))
     }
 
+    /** 只出 BI / Adjust 的带价值事件，禁止出 Firebase（接入需求 §8.10）。 */
     private fun trackValueEvent(
-        context: Context,
         event: String,
         revenue: Double,
         currencyCode: String = "USD"
     ) {
-        putFirebaseAdRevenue(context, event, revenue, currencyCode)
-
         runCatching {
             TrackSDK.track(event, null, TrackPolicy.IMMEDIATE)
             Log.d(TAG, "trackValueEvent: $event revenue=$revenue currency=$currencyCode")
@@ -219,6 +225,14 @@ object AdTrackingHelper {
         revenue: Double,
         currencyCode: String = "USD",
     ) {
+        if (event !in FIREBASE_EVENTS) {
+            Log.w(TAG, "Firebase egress blocked: $event is BI / Adjust only")
+            return
+        }
+        if (!LocalConfig.firebaseTrackingEnabled) {
+            Log.d(TAG, "Firebase egress skipped: track.enable.firebase=false")
+            return
+        }
         runCatching {
             val bundle = Bundle().apply {
                 putDouble(FirebaseAnalytics.Param.VALUE, revenue)

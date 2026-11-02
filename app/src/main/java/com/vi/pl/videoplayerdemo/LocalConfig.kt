@@ -13,6 +13,15 @@ import com.vi.pl.videoplayerdemo.hellohello.NoticeConfigStore
 object LocalConfig {
     private const val TAG = "LocalConfig"
 
+    /**
+     * `track.enable.firebase`（接入需求 §3.2，缺省 true）。
+     *
+     * RC 未接入（§11 T01 待定）前先由本地配置兜底；将来接上 Remote Config 后，
+     * 只需在拉取成功后覆盖这一个字段，调用方不用改。
+     */
+    @Volatile
+    var firebaseTrackingEnabled: Boolean = true
+
     /** 启动时应用一次；重复调用只是覆盖同一份配置。 */
     fun init() {
         runCatching { NoticeConfigStore.cacheNotice(RAW) }

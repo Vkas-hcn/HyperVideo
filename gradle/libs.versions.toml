@@ -10,8 +10,9 @@ activityKtx = "1.13.0"
 constraintlayout = "2.2.1"
 lifecycleProcess = "2.9.3"
 coroutines = "1.10.2"
-firebaseBom = "33.13.0"
+firebaseBom = "34.5.0"
 googleServices = "4.4.2"
+crashlytics = "3.0.6"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -25,8 +26,8 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleProcess" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
-firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "crashlytics" }

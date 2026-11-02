@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
-    id("com.google.gms.google-services")
-    id("com.google.firebase.crashlytics")
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.crashlytics)
 }
 
 android {
@@ -16,8 +16,8 @@ android {
         applicationId = "com.hyperideo.hdvideoplayer"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
@@ -42,6 +42,13 @@ android {
     buildFeatures {
         buildConfig = true
         viewBinding = true
+    }
+
+    // F02：mapping 上传开关显式声明，供 rg 静态核对（需求 §F02「按各工程决定」）。
+    // 决策：release 上传 mapping 用于还原混淆栈，Debug 不需要；线上包本地不编译，
+    // 所以这一项只作静态口径，实际产物由构建流水线决定。
+    firebaseCrashlytics {
+        mappingFileUploadEnabled = true
     }
 }
 
@@ -79,7 +86,7 @@ dependencies {
 
     implementation("com.adjust.sdk:adjust-android:5.6.1")
 
-    implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
+    implementation(platform(libs.firebase.bom))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics")
     implementation("com.google.firebase:firebase-messaging")
