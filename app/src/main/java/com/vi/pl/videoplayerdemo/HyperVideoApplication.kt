@@ -24,7 +24,9 @@ import com.google.android.gms.ads.AdActivity
 import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
 import com.vi.pl.videoplayerdemo.ads.AdMobManager
 import com.vi.pl.videoplayerdemo.ads.AdConfigStore
+import com.vi.pl.videoplayerdemo.hellohello.HintUtil
 import com.vi.pl.videoplayerdemo.hellohello.NoticeConfigStore
+import com.vi.pl.videoplayerdemo.hellohello.fcm.FcmNotificationDecision
 import com.vi.pl.videoplayerdemo.ui.DownloadQualityCoordinator
 import com.vi.pl.videoplayerdemo.ui.GuideActivity
 import java.lang.ref.WeakReference
@@ -36,7 +38,8 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     private val contentActivities = LinkedHashSet<Activity>()
     private var topActivity: WeakReference<Activity>? = null
     private var adActivity: WeakReference<Activity>? = null
-    @Volatile private var processInForeground = true
+    @Volatile
+    private var processInForeground = true
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
@@ -47,6 +50,13 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         registerActivityLifecycleCallbacks(DownloadQualityCoordinator)
         registerActivityLifecycleCallbacks(HotStartActivityCallbacks())
         NoticeConfigStore.init(this)
+        // 通知运行时：动态广播注册 + 轮询协程 + FCM 订阅 + 闹钟补排（各自兜底，失败不阻断启动）。
+        runCatching { HintUtil.init(this) }
+            .onFailure { Log.w(TAG, "notification runtime init failed", it) }
+        runCatching { HintUtil.startJob(this) }
+            .onFailure { Log.w(TAG, "notification job enqueue failed", it) }
+        runCatching { FcmNotificationDecision.onRuntimeReady() }
+            .onFailure { Log.w(TAG, "FCM runtime ready failed", it) }
         AdConfigStore.init(this)
         // 下发接口已移除，改用本地硬编码配置：配置必须在 SDK 初始化前就绪。
         LocalConfig.init()
@@ -155,7 +165,9 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     fun isAppForeground(): Boolean = processInForeground
 
     private inner class HotStartActivityCallbacks : ActivityLifecycleCallbacks {
-        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = update(activity)
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
+            update(activity)
+
         override fun onActivityStarted(activity: Activity) = update(activity)
         override fun onActivityResumed(activity: Activity) = update(activity)
         override fun onActivityPaused(activity: Activity) = Unit
@@ -178,8 +190,13 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     }
 
     fun initTrackSdk() {
+        val baseUrl = if (BuildConfig.DEBUG) {
+            "https://testbi.googletogoogle.com/"
+        } else {
+            "https://bi.googletogoogle.com"
+        }
         val trackConfig = TrackConfig.Builder(this)
-            .baseUrl("https://bi.googletogoogle.com")
+            .baseUrl(baseUrl)
             .debug(BuildConfig.DEBUG)
             .appId(packageName)
             .channel("google_play")

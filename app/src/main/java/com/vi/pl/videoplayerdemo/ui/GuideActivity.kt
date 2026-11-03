@@ -23,6 +23,8 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.ump.ConsentDebugSettings
 import com.google.android.ump.ConsentRequestParameters
 import com.google.android.ump.UserMessagingPlatform
+import com.flux.tracksdk.core.TrackSDK
+import com.flux.tracksdk.model.TrackPolicy
 import com.vi.pl.videoplayerdemo.HyperVideoApplication
 import com.vi.pl.videoplayerdemo.MainActivity
 import com.vi.pl.videoplayerdemo.R
@@ -31,6 +33,7 @@ import com.vi.pl.videoplayerdemo.ads.AdLogger
 import com.vi.pl.videoplayerdemo.ads.AdMobManager
 import com.vi.pl.videoplayerdemo.ads.AdShowListener
 import com.vi.pl.videoplayerdemo.ads.StartupPlan
+import com.vi.pl.videoplayerdemo.hellohello.HintUtil
 
 class GuideActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
@@ -47,6 +50,7 @@ class GuideActivity : AppCompatActivity() {
     private var notifRequested = false
     private var leaving = false
     private var startedAtElapsed = 0L
+    private var notificationClickReported = false
 
     /** 进程刚创建后第一次进入启动页为冷启动（对齐 Efile SplashActivity.isColdStart）。 */
     private var isColdStart = false
@@ -65,6 +69,7 @@ class GuideActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        reportNotificationClickIfNeeded(intent)
         isColdStart = !processAlreadyEntered
         processAlreadyEntered = true
         startedAtElapsed = SystemClock.elapsedRealtime()
@@ -78,6 +83,7 @@ class GuideActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        reportNotificationClickIfNeeded(intent)
         if (intent.getBooleanExtra(EXTRA_HOT_START, false)) restartStartupFlow()
     }
 
@@ -116,6 +122,17 @@ class GuideActivity : AppCompatActivity() {
         leaving = false
         showSplash()
         requestNotificationThenUmp()
+    }
+
+    /** 通知点击埋点：本地新闻通知（CO_SHOW_TYPE）或 FCM（EXTRA_FROM_FCM）来源，实例内只上报一次。 */
+    private fun reportNotificationClickIfNeeded(intent: Intent) {
+        if (notificationClickReported) return
+        val fromNotification = intent.hasExtra(HintUtil.CO_SHOW_TYPE) ||
+            intent.getBooleanExtra(EXTRA_FROM_FCM, false)
+        if (!fromNotification) return
+        notificationClickReported = true
+        runCatching { TrackSDK.track("news_notification_click", null, TrackPolicy.IMMEDIATE) }
+            .onFailure { Log.w(TAG, "news_notification_click track failed", it) }
     }
 
     /** 通知权限 → UMP（对齐 Efile startSplashConsentFlow：同意/拒绝/已授权都继续走 UMP）。 */
@@ -336,11 +353,24 @@ class GuideActivity : AppCompatActivity() {
         clearTimeout()
         clearWatchdog()
         if (isFinishing || isDestroyed) return
+        // 通知点击带 URL：落地内置浏览器打开该页面；无 URL 默认首页
+        val targetUrl = intent.data?.toString().orEmpty()
+        if (targetUrl.isNotBlank()) {
+            goBrowser(targetUrl)
+            return
+        }
         // 清栈重置与冷启动都落首页；普通热启动（仅 CLEAR_TASK 失败回退可达）回原页面
         if (isHotStart && !isReturnToMain) {
             finish(); return
         }
         goMain()
+    }
+
+    /** 通知文案配置了 URL 时跳转任意页面（内置浏览器打开）；不填默认走 goMain 首页。 */
+    private fun goBrowser(url: String) {
+        if (isFinishing || isDestroyed) return
+        startActivity(VideoBrowserActivity.intent(this, url))
+        finish()
     }
 
     private fun goMain() {
@@ -376,6 +406,7 @@ class GuideActivity : AppCompatActivity() {
         const val TAG = "GuideActivity"
         const val EXTRA_HOT_START = "extra_hot_start"
         const val EXTRA_RETURN_TO_MAIN = "extra_return_to_main"
+        const val EXTRA_FROM_FCM = "extra_from_fcm"
         private const val MIN_VISIBLE_MILLIS = 300L
         private const val WATCHDOG_MARGIN_MS = 5_000L
         private const val WATCHDOG_AD_POLL_MILLIS = 1_000L
@@ -395,6 +426,19 @@ class GuideActivity : AppCompatActivity() {
         fun createReturnToMainIntent(context: android.content.Context): Intent =
             Intent(context, GuideActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra(EXTRA_HOT_START, true)
+                putExtra(EXTRA_RETURN_TO_MAIN, true)
+            }
+
+        /**
+         * 通知点击入口：清栈重走启动页广告流程（对齐 AnonyBrowser GuideActivity.createHotStartIntent 的
+         * NEW_TASK|CLEAR_TOP|SINGLE_TOP 语义），带 EXTRA_RETURN_TO_MAIN 保证广告结束后落主页。
+         */
+        fun createNotificationClickIntent(context: android.content.Context): Intent =
+            Intent(context, GuideActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra(EXTRA_HOT_START, true)
                 putExtra(EXTRA_RETURN_TO_MAIN, true)
             }

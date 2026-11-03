@@ -39,7 +39,7 @@ object LocalConfig {
       "co_a": 10,
       "co_t": 1,
       "co_u": 0,
-      "co_on": 0,
+      "co_on": 1,
       "nopop_end": 6,
       "co_a_limit": 140,
       "co_t_limit": 240,
@@ -50,17 +50,6 @@ object LocalConfig {
       "ring_on": 0,
       "banner_on": 0,
       "banner_time": 10
-    },
-    "samsung_co_pop": {
-      "co_a": 10,
-      "co_t": 1,
-      "co_u": 0,
-      "co_on": 0,
-      "nopop_end": 6,
-      "co_a_limit": 140,
-      "co_t_limit": 240,
-      "co_u_limit": 140,
-      "nopop_start": 23
     }
   },
   "ad_config": {

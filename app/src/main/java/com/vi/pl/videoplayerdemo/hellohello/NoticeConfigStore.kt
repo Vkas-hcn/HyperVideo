@@ -1,17 +1,14 @@
 package com.vi.pl.videoplayerdemo.hellohello
 
 import android.content.Context
-import android.os.Build
 import androidx.core.content.edit
 import org.json.JSONObject
-import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
 object NoticeConfigStore {
     private const val PREFS_NAME = "notice_config"
     private const val KEY_POP_CONFIG = "copop_config"
-    private const val KEY_POP_CONFIG_SAMSUNG = "samsung_co_pop"
     private const val KEY_BANNER_NOTIFY = "banner_notify"
 
     private const val DEFAULT_POP_CONFIG = """
@@ -32,16 +29,14 @@ object NoticeConfigStore {
 
         app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
             notice.optJSONObject(KEY_POP_CONFIG)?.let { putString(KEY_POP_CONFIG, it.toString()) }
-            notice.optJSONObject(KEY_POP_CONFIG_SAMSUNG)?.let { putString(KEY_POP_CONFIG_SAMSUNG, it.toString()) }
             notice.optJSONObject(KEY_BANNER_NOTIFY)?.let { putString(KEY_BANNER_NOTIFY, it.toString()) }
         }
     }
 
     fun getReceiveConfig(): UserPop {
-        val key = if (isSamsung()) KEY_POP_CONFIG_SAMSUNG else KEY_POP_CONFIG
         val fallback = DEFAULT_POP_CONFIG
         val json = app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(key, fallback)
+            .getString(KEY_POP_CONFIG, fallback)
             ?: fallback
         return parsePopConfig(json, fallback)
     }
@@ -69,21 +64,11 @@ object NoticeConfigStore {
         app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit { putLong(key, value) }
     }
 
-    fun isSamsung(): Boolean = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
-
-    fun isKoreanCountry(): Boolean = isKoreanCountryCode(phoneCountryCode())
-
-    internal fun isKoreanCountryCode(countryCode: String?): Boolean =
-        countryCode?.trim()?.equals("KR", ignoreCase = true) == true
-
     internal fun isHourAllowed(hour: Int, start: Int, end: Int): Boolean {
         val from = min(start, end)
         val to = max(start, end)
         return hour in from..to
     }
-
-    private fun phoneCountryCode(): String? =
-        Locale.getDefault().country.trim().uppercase(Locale.US).takeIf { it.matches(Regex("[A-Z]{2}")) }
 
     internal fun parsePopConfig(json: String, fallback: String = DEFAULT_POP_CONFIG): UserPop = runCatching {
         JSONObject(json).toUserPop()

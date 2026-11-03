@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <queries>
         <package android:name="com.google.android.gms" />
@@ -84,6 +86,32 @@
             android:name=".player.BackgroundPlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <!-- 通知/拉活/保活（无前台服务载体，保活=闹钟自恢复） -->
+        <service
+            android:name=".hellohello.MessageRecv"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".hellohello.AssistanceLaunceJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <receiver
+            android:name=".hellohello.TimeWorkerRe"
+            android:exported="false" />
+        <receiver
+            android:name=".hellohello.NewsBannerDismissReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".hellohello.NoticeBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <!-- WorkManager 的前台服务：下载要在后台继续必须声明 dataSync 类型。
              缺了它 startForeground 会抛 IllegalArgumentException 直接崩溃，不要删。 -->
         <service
