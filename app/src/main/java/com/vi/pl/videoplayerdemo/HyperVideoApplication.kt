@@ -38,6 +38,7 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     private val contentActivities = LinkedHashSet<Activity>()
     private var topActivity: WeakReference<Activity>? = null
     private var adActivity: WeakReference<Activity>? = null
+    private var pendingHotStartRelaunch: Runnable? = null
     @Volatile
     private var processInForeground = true
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -82,9 +83,7 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     override fun onStop(owner: LifecycleOwner) {
         processInForeground = false
         AdMobManager.updateAppForegroundState(false)
-        adActivity?.get()
-            ?.takeIf { !it.isFinishing && !it.isDestroyed }
-            ?.finish()
+        dismissCurrentAdActivity()
         // 冷启动尚未进过前台不武装（对齐 Efile HotStartState.canArmOnBackground）
         if (!hasSeenForeground) {
             Log.d(TAG, "启动广告判定=进入后台 热启动不武装 原因=冷启动尚未进过前台")
@@ -163,6 +162,36 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     }
 
     fun isAppForeground(): Boolean = processInForeground
+
+    /**
+     * 旧启动页已在离场时，延迟清栈拉起新的启动页。
+     *
+     * 不能立即 startActivity：旧流程可能刚把 MainActivity 入栈，两个启动顺序竞争时
+     * 新 GuideActivity 会被 MainActivity 盖住，导致广告流程没展示就回首页。
+     */
+    fun relaunchGuideForHotStart(source: Intent) {
+        val intent = Intent(source).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        pendingHotStartRelaunch?.let(mainHandler::removeCallbacks)
+        val runnable = Runnable {
+            pendingHotStartRelaunch = null
+            runCatching { startActivity(intent) }
+                .onFailure { Log.w(TAG, "hot start relaunch failed", it) }
+        }
+        pendingHotStartRelaunch = runnable
+        mainHandler.postDelayed(runnable, HOT_START_RELAUNCH_DELAY_MS)
+    }
+
+    /** 关闭当前 GMA 全屏广告 Activity；通知热启动需要先收起正在展示的开屏/插屏。 */
+    fun dismissCurrentAdActivity(): Boolean {
+        val activity = adActivity?.get() ?: return false
+        if (activity.isFinishing || activity.isDestroyed) return false
+        return runCatching {
+            activity.finish()
+            true
+        }.getOrDefault(false)
+    }
 
     private inner class HotStartActivityCallbacks : ActivityLifecycleCallbacks {
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) =
@@ -244,6 +273,7 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     companion object {
         private const val TAG = "HyperVideoApp"
         private const val HOT_START_DEBOUNCE_MS = 300L
+        private const val HOT_START_RELAUNCH_DELAY_MS = 300L
         private lateinit var instance: HyperVideoApplication
         fun get(): HyperVideoApplication = instance
     }

@@ -47,7 +47,25 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/app_shortcuts" />
         </activity>
+        <activity
+            android:name=".uninstall.UninstallEntryActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.VideoPlayerDemo" />
+        <activity
+            android:name=".uninstall.UninstallRetentionActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.VideoPlayerDemo" />
+        <activity
+            android:name=".uninstall.UninstallConfirmActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.VideoPlayerDemo" />
         <activity
             android:name=".MainActivity"
             android:exported="false"

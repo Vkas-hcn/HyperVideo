@@ -43,7 +43,8 @@ object AdLogger {
     fun nativeAllFailed(slot: String, key: String) =
         w("${prefix(slot)}全部广告单元加载失败,本次不展示")
 
-    fun nativeDestroyed(slot: String) = d("${prefix(slot)}已销毁")
+    fun nativeDestroyed(slot: String, inFlight: Boolean = false) =
+        d("${prefix(slot)}已清理当前广告" + if (inFlight) ",在途加载继续" else "")
 
     fun nativePresented(slot: String) = d("${prefix(slot)}展示")
 
@@ -54,12 +55,14 @@ object AdLogger {
 
     // ---------------- 插屏 / 开屏 ----------------
 
-    fun interstitialLoadRequest(slot: String, state: String) =
-        d("${prefix(slot)}开始加载,当前状态:${stateName(state)}")
+    fun interstitialLoadRequest(slot: String) = d("${prefix(slot)}开始加载")
 
     fun interstitialCacheHit(slot: String) = d("${prefix(slot)}命中缓存,直接复用")
 
     fun interstitialAutoPreload(slot: String) = d("${prefix(slot)}开始自动预加载")
+
+    fun hotStartClosingAd() = d("【启动页】热启动关闭当前广告")
+    fun hotStartCloseTimeout() = w("【启动页】热启动关闭当前广告超时,强制重置展示状态")
 
     fun interstitialWaterfallTry(index: Int, name: String, id: String, slot: String) =
         d("${prefix(slot)}尝试第 ${index + 1} 个广告单元:${name}(${id})")

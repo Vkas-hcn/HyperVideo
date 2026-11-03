@@ -173,17 +173,28 @@ object AdMobManager {
     fun getIntersOpenLoadTimeoutMs(): Long = config.intersOpenLoadTime.coerceAtLeast(0).toLong()
     fun resetGuideShowState() = synchronized(this) { guideShown = false }
 
+    /**
+     * 热启动兜底：广告 Activity 已被 finish 但 SDK 未在超时内回调 onAdDismissed 时，
+     * 强制清掉“正在展示”状态，允许新的启动广告展示。仅应在确认已关闭广告 Activity 后调用。
+     */
+    fun forceClearFullscreenShowingState() = synchronized(this) {
+        openShowing = false
+        slots.values.forEach { it.showing = false }
+    }
+
     fun loadOpenAd(context: Context, listener: AdLoadListener? = null) = onMain {
-        val state = when {
-            openLoading -> "LOADING"
-            validOpen() -> "LOADED"
-            else -> "NOT_LOADED"
-        }
-        AdLogger.interstitialLoadRequest(OPEN_SLOT, state)
-        if (!canLoad(config.intersBackConfig, listener, OPEN_SLOT) || fullscreenCapBlocked(context, OPEN_SLOT) || openLoading || validOpen()) {
-            if (validOpen()) { AdLogger.interstitialCacheHit(OPEN_SLOT); listener?.onAdLoaded() }
+        if (!canLoad(config.intersBackConfig, listener, OPEN_SLOT)) return@onMain
+        if (fullscreenCapBlocked(context, OPEN_SLOT)) return@onMain
+        if (validOpen()) {
+            AdLogger.interstitialCacheHit(OPEN_SLOT)
+            listener?.onAdLoaded()
             return@onMain
         }
+        if (openLoading) {
+            AdLogger.loadSkipped(OPEN_SLOT, "already_loading")
+            return@onMain
+        }
+        AdLogger.interstitialLoadRequest(OPEN_SLOT)
         openLoading = true
         loadOpenWaterfall(context.applicationContext, 0, listener)
     }
@@ -233,7 +244,12 @@ object AdMobManager {
         ad.fullScreenContentCallback = callback(
             OPEN_SLOT, listener,
             onShow = { openShowing = true; FullscreenLimitStore.recordFullscreenImpression(activity) },
-            onClose = { openShowing = false; FullscreenLimitStore.recordFullscreenClosed(activity); loadOpenAd(activity.applicationContext) },
+            onClose = {
+                openShowing = false
+                FullscreenLimitStore.recordFullscreenClosed(activity)
+                AdLogger.interstitialAutoPreload(OPEN_SLOT)
+                loadOpenAd(activity.applicationContext)
+            },
             onFail = { openShowing = false; FullscreenLimitStore.recordFullscreenClosed(activity) },
         )
         return runCatching { ad.show(activity); true }.getOrElse { openShowing = false; AdLogger.adShowFailed(OPEN_SLOT, it.message ?: NOT_LOADED); listener?.onAdShowFailed(it.message ?: NOT_LOADED); false }
@@ -241,17 +257,20 @@ object AdMobManager {
 
     fun loadInterstitial(context: Context, placement: InterstitialPlacement, listener: AdLoadListener? = null) = onMain {
         val slot = slots.getValue(placement)
-        val state = when {
-            slot.loading -> "LOADING"
-            valid(slot) -> "LOADED"
-            else -> "NOT_LOADED"
-        }
-        AdLogger.interstitialLoadRequest(placement.id, state)
-        if (!canLoad(configFor(placement), listener, placement.id) || fullscreenCapBlocked(context, placement.id) || slot.loading || valid(slot)) {
-            if (valid(slot)) { AdLogger.interstitialCacheHit(placement.id); listener?.onAdLoaded() }
+        if (!canLoad(configFor(placement), listener, placement.id)) return@onMain
+        if (fullscreenCapBlocked(context, placement.id)) return@onMain
+        if (valid(slot)) {
+            AdLogger.interstitialCacheHit(placement.id)
+            listener?.onAdLoaded()
             return@onMain
         }
-        slot.loading = true; loadInterstitialWaterfall(context.applicationContext, placement, 0, listener)
+        if (slot.loading) {
+            AdLogger.loadSkipped(placement.id, "already_loading")
+            return@onMain
+        }
+        AdLogger.interstitialLoadRequest(placement.id)
+        slot.loading = true
+        loadInterstitialWaterfall(context.applicationContext, placement, 0, listener)
     }
 
     private fun loadInterstitialWaterfall(context: Context, placement: InterstitialPlacement, index: Int, listener: AdLoadListener?) {
@@ -300,7 +319,12 @@ object AdMobManager {
         ad.fullScreenContentCallback = callback(
             placement.id, listener,
             onShow = { FullscreenLimitStore.recordFullscreenImpression(activity) },
-            onClose = { slot.showing = false; FullscreenLimitStore.recordFullscreenClosed(activity); loadInterstitial(activity.applicationContext, placement) },
+            onClose = {
+                slot.showing = false
+                FullscreenLimitStore.recordFullscreenClosed(activity)
+                AdLogger.interstitialAutoPreload(placement.id)
+                loadInterstitial(activity.applicationContext, placement)
+            },
             onFail = { slot.showing = false; FullscreenLimitStore.recordFullscreenClosed(activity) },
         )
         return runCatching { ad.show(activity); true }.getOrElse { slot.showing = false; AdLogger.adShowFailed(placement.id, it.message ?: NOT_LOADED); listener?.onAdShowFailed(it.message ?: NOT_LOADED); false }
@@ -378,6 +402,20 @@ object AdMobManager {
                 context.applicationContext, adValue, adType, posId,
             )
         }
+    }
+
+    /**
+     * 启动页关闭后的 guide1/2 补货。
+     *
+     * 必须使用 AdMobManager 的进程级 Handler：GuideActivity 关闭后通常会在 1 秒内 finish，
+     * 其 onDestroy 会清空 Activity Handler，导致原来的延迟补货 Runnable 被取消。
+     */
+    fun preloadGuideInterstitials(delayMs: Long = 0L) {
+        main.postDelayed({
+            val context = appContext ?: return@postDelayed
+            loadInterstitial(context, InterstitialPlacement.GUIDE_1)
+            loadInterstitial(context, InterstitialPlacement.GUIDE_2)
+        }, delayMs.coerceAtLeast(0L))
     }
 
     /** 启动页预热：首帧前即可发起开屏加载，不等待 UMP 完成（对齐 Efile warmupSplashAd）。 */

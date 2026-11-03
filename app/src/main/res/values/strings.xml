@@ -199,4 +199,21 @@
     <string name="notification_channel_news">News Updates</string>
     <string name="notification_content_icon_desc">Notification content</string>
     <string name="notification_play_desc">Play</string>
+    <string name="shortcut_uninstall">Uninstall</string>
+    <string name="uninstall_title">Feedback</string>
+    <string name="uninstall_headline">Problems during use</string>
+    <string name="uninstall_subtitle">Improve your experience</string>
+    <string name="uninstall_issue_playback">Video playback issue</string>
+    <string name="uninstall_action_fix">Fix</string>
+    <string name="uninstall_issue_loading">Video loading is slow</string>
+    <string name="uninstall_action_speed">Speed up</string>
+    <string name="uninstall_keep">Keep watching</string>
+    <string name="uninstall_still">Still uninstalling</string>
+    <string name="uninstall_confirm_title">Uninstall</string>
+    <string name="uninstall_brand_first">Hyper</string>
+    <string name="uninstall_brand_second">Video</string>
+    <string name="uninstall_not_now">Not Now</string>
+    <string name="uninstall_settings_failed">Unable to open app settings</string>
+    <string name="uninstall_back">Back</string>
+    <string name="uninstall_logo">Hyper Video</string>
 </resources>

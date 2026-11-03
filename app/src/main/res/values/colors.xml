@@ -24,6 +24,8 @@
     <color name="vip_gradient_end">#FF552BE6</color>
     <color name="profile_menu_divider">#FF2A2C34</color>
     <color name="login_card">#FF1F222A</color>
+    <color name="uninstall_card">#FF1A1A1D</color>
+    <color name="uninstall_link">#FFB0B0B3</color>
     <color name="notification_text_primary">#FF1A1A1D</color>
     <color name="notification_text_secondary">#CC1A1A1D</color>
 </resources>

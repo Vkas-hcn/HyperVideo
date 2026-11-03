@@ -289,7 +289,7 @@ object HintUtil {
             } else {
                 NewsLogger.bannerSkipped("banner_disabled")
             }
-            sendStandardNotification(content, showType, notificationId)
+            sendStandardNotification(content, showType, notificationId, sticky = true)
             recordSent(showType)
         }
     }
@@ -343,17 +343,8 @@ object HintUtil {
                 }
             }
         } finally {
-            // finishStay 在最后一次刷新后就把会话置空了，这里不能再靠它的返回值判断，
-            // 否则收尾通知发不出去，常驻 banner 会一直挂在通知栏上划不掉。
+            // 会话结束后通知保持常驻（置顶、划不掉），由用户点击时清掉。
             bannerSessions.cancel(session.sessionId)
-            sendStandardNotification(
-                content,
-                showType,
-                session.notificationId,
-                alert = settleAlert,
-                sticky = false,
-                trackSent = false,
-            )
             NewsLogger.bannerFinished(content.id)
         }
     }
@@ -405,7 +396,6 @@ object HintUtil {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
-            .setOnlyAlertOnce(alert.onlyAlertOnce)
             .applyAlertBehavior(alert)
             .setContentIntent(contentIntent)
             .apply {
@@ -419,12 +409,17 @@ object HintUtil {
             .setCustomBigContentView(createLargeNewsView(content, contentIntent))
             .setCustomHeadsUpContentView(createCollapsedNewsView(content, contentIntent))
             .build()
+            .apply {
+                // 置顶（常驻、划不掉）：Android 14 起 FLAG_ONGOING_EVENT 已经挡不住用户划掉，
+                // 只能靠 FLAG_NO_CLEAR；点击时由 GuideActivity 主动清掉本条。
+                if (sticky) flags = flags or Notification.FLAG_NO_CLEAR
+            }
     }
 
     private fun NotificationCompat.Builder.applyAlertBehavior(alert: AlertProfile): NotificationCompat.Builder {
         if (alert.silent) {
-            // 只用静音渠道 + 关掉声音/振动。不要用 setSilent()：它在平台侧会附带
-            // 分组/仅提醒一次语义，导致后续刷新弹不出横幅。
+            // 只用静音渠道 + 关掉声音/振动。不要用 setSilent()/setOnlyAlertOnce()：
+            // 平台会附带分组、仅提醒一次语义，后续刷新就弹不出横幅了。
             return setDefaults(0).setSound(null).setVibrate(null)
         }
         if (alert.vibrate) {
@@ -437,8 +432,6 @@ object HintUtil {
     private data class AlertProfile(
         val silent: Boolean,
         val vibrate: Boolean,
-        /** 更新已存在的通知时是否压掉提醒；默认 false，横幅才会一次次重新弹出。 */
-        val onlyAlertOnce: Boolean = false,
     )
 
     private val firstShowAlert = AlertProfile(
@@ -450,13 +443,6 @@ object HintUtil {
     private fun refreshAlert(silent: Boolean) = AlertProfile(
         silent = silent,
         vibrate = false,
-    )
-
-    /** 会话收尾：常驻通知改成可划掉，不再额外弹一次。 */
-    private val settleAlert = AlertProfile(
-        silent = true,
-        vibrate = false,
-        onlyAlertOnce = true,
     )
 
     private fun createCollapsedNewsView(

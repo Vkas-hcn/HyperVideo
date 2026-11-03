@@ -198,6 +198,7 @@ class NativeAdSlot(
     }
 
     fun destroy() {
+        val wasLoading = adState == AdState.LOADING
         refreshRunnable?.let { mainHandler.removeCallbacks(it) }
         refreshRunnable = null
         cache.getWrapper()?.ad?.destroy()
@@ -205,7 +206,9 @@ class NativeAdSlot(
         cache.clear()
         displayedWrapper = null
         adState = AdState.NOT_LOADED
-        AdLogger.nativeDestroyed(slotName)
+        // 不取消在途 loadToken：槽位是进程级共享，release 可能来自旧页面，
+        // 而新页面刚发起的加载仍需完成；这里只清理当前缓存/展示。
+        AdLogger.nativeDestroyed(slotName, wasLoading)
     }
 
     fun clear() {

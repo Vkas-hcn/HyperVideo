@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.annotation.LayoutRes
 import com.google.android.gms.ads.nativead.AdChoicesView
 import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdView
@@ -21,6 +22,7 @@ import com.vi.pl.videoplayerdemo.R
 class NativeAdPresenter(
     private val placement: AdMobManager.NativePlacement,
     private val host: ViewGroup,
+    @param:LayoutRes private val layoutRes: Int = R.layout.item_home_native_ad,
 ) {
     private var displayedAd: NativeAd? = null
     private var displayedView: NativeAdView? = null
@@ -71,7 +73,7 @@ class NativeAdPresenter(
         if (displayedAd === ad) return
 
         val view = LayoutInflater.from(host.context)
-            .inflate(R.layout.item_home_native_ad, host, false) as NativeAdView
+            .inflate(layoutRes, host, false) as NativeAdView
 
         val iconView = view.findViewById<ImageView>(R.id.ad_app_icon)
         val icon = ad.icon?.drawable
@@ -110,8 +112,8 @@ class NativeAdPresenter(
         }
 
         // AdChoices 图标由 SDK 渲染到右上角占位，不注册会被判为素材未完整展示。
-        val adChoicesView = view.findViewById<AdChoicesView>(R.id.ad_choices)
-        view.setAdChoicesView(adChoicesView)
+        // 小尺寸模板也包含该占位；缺失时跳过，避免自定义布局直接崩溃。
+        view.findViewById<AdChoicesView>(R.id.ad_choices)?.let { view.setAdChoicesView(it) }
 
         // 旧实例在广告位取新实例时已销毁，这里只清理视图引用，保证同一时刻只有一条有效展示。
         if (displayedAd != null) {
