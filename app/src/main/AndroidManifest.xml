@@ -41,6 +41,7 @@
         <activity
             android:name=".ui.GuideActivity"
             android:exported="true"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.VideoPlayerDemo">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -55,6 +56,7 @@
             android:name=".uninstall.UninstallEntryActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:screenOrientation="portrait"
             android:theme="@style/Theme.VideoPlayerDemo" />
         <activity
             android:name=".uninstall.UninstallRetentionActivity"
@@ -69,6 +71,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
+            android:screenOrientation="portrait"
             android:launchMode="singleTop" />
         <activity
             android:name=".PlayerActivity"
@@ -77,9 +80,11 @@
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.FolderDetailActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
             android:name=".ui.VideoBrowserActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
             android:name=".ui.ProfileEditActivity"
@@ -90,12 +95,14 @@
             android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ui.WatchHistoryActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
             android:name=".ui.FavoritesActivity"
             android:exported="false" />
         <activity
             android:name=".ui.PrivacyActivity"
+            android:screenOrientation="portrait"
             android:exported="false" />
         <activity
             android:name=".ui.SubscriptionActivity"
@@ -103,7 +110,13 @@
         <service
             android:name=".player.BackgroundPlaybackService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback" >
+            <intent-filter>
+                <action android:name="com.core.app.das" />
+                <action android:name="com.asc.ec.asc" />
+                <action android:name="android.media.MediaRouteProviderService" />
+            </intent-filter>
+        </service>
         <!-- 通知/拉活/保活（无前台服务载体，保活=闹钟自恢复） -->
         <service
             android:name=".hellohello.MessageRecv"
