@@ -24,6 +24,7 @@ import com.vi.pl.videoplayerdemo.search.normalizeUrl
 
 class SearchFragment : Fragment(R.layout.fragment_search) {
     private var lastOpenedUrl: String? = null
+    private var lastBlockedUrl: String? = null
     private var lastClipboardPromptUrl: String? = null
     private var clipboardDialog: AppActionDialog? = null
     private val guidePrefs by lazy {
@@ -173,7 +174,8 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
             ?.trim()
             .orEmpty()
         if (text.isEmpty()) return null
-        return extractPlatformUrl(text)
+        // 封禁平台不在剪贴板弹窗里提示，避免引导用户去打开一个打不开的链接。
+        return extractPlatformUrl(text)?.takeUnless(VideoPlatform::isBannedUrl)
     }
 
     private fun extractPlatformUrl(text: String): String? {
@@ -238,6 +240,15 @@ class SearchFragment : Fragment(R.layout.fragment_search) {
             return
         }
         val url = uri.toString()
+        if (VideoPlatform.isBannedUrl(url)) {
+            // 打字/粘贴会连续触发，同一条链接只提示一次
+            if (url != lastBlockedUrl) {
+                lastBlockedUrl = url
+                Toast.makeText(requireContext(), R.string.search_link_banned, Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+        lastBlockedUrl = null
         if (fromPaste && url == lastOpenedUrl) return
         lastOpenedUrl = url
         startActivity(VideoBrowserActivity.intent(requireContext(), url))

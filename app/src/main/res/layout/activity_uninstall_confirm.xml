@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/confirm_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/app_background">
+
+    <ImageView
+        android:id="@+id/confirm_bg"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:src="@drawable/uninstall_bg"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <FrameLayout
+        android:id="@+id/confirm_header"
+        android:layout_width="0dp"
+        android:layout_height="64dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/confirm_back"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/uninstall_back"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_uninstall_back" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:fontFamily="@font/inter_semibold"
+            android:includeFontPadding="false"
+            android:lineHeight="24sp"
+            android:text="@string/uninstall_confirm_title"
+            android:textColor="@color/white"
+            android:textSize="19sp" />
+    </FrameLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/confirm_content"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/confirm_header">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="32dp">
+
+            <ImageView
+                android:id="@+id/confirm_logo"
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="100dp"
+                android:contentDescription="@string/uninstall_logo"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_uninstall_logo" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/inter_semibold"
+                    android:includeFontPadding="false"
+                    android:lineHeight="38sp"
+                    android:text="@string/uninstall_brand_first"
+                    android:textColor="@color/white"
+                    android:textSize="32sp" />
+
+                <com.vi.pl.videoplayerdemo.ui.GradientTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:fontFamily="@font/inter_semibold"
+                    android:includeFontPadding="false"
+                    android:lineHeight="38sp"
+                    android:text="@string/uninstall_brand_second"
+                    android:textColor="@color/white"
+                    android:textSize="32sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/confirm_not_now"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="88dp"
+                android:background="@drawable/bg_uninstall_cta"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/inter_semibold"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:text="@string/uninstall_not_now"
+                android:textColor="@color/white"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/confirm_uninstall"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:fontFamily="@font/mulish_semibold"
+                android:includeFontPadding="false"
+                android:lineHeight="18sp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp"
+                android:text="@string/uninstall_confirm_title"
+                android:textColor="@color/uninstall_link"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.constraintlayout.widget.ConstraintLayout>

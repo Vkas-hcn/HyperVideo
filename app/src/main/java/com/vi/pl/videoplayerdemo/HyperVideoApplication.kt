@@ -39,6 +39,7 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     private var topActivity: WeakReference<Activity>? = null
     private var adActivity: WeakReference<Activity>? = null
     private var pendingHotStartRelaunch: Runnable? = null
+    private var ignoreNextBackgroundReturn = false
     @Volatile
     private var processInForeground = true
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -63,7 +64,6 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         LocalConfig.init()
         AdMobManager.initialize(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
-        initTrackSdk()
     }
 
     override fun onStart(owner: LifecycleOwner) {
@@ -84,6 +84,12 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
         processInForeground = false
         AdMobManager.updateAppForegroundState(false)
         dismissCurrentAdActivity()
+        // 去系统设置页等系统界面不算真正离开后台，跳过一次热启动判定
+        if (ignoreNextBackgroundReturn) {
+            ignoreNextBackgroundReturn = false
+            Log.d(TAG, "启动广告判定=跳过热启动 原因=主动跳系统页")
+            return
+        }
         // 冷启动尚未进过前台不武装（对齐 Efile HotStartState.canArmOnBackground）
         if (!hasSeenForeground) {
             Log.d(TAG, "启动广告判定=进入后台 热启动不武装 原因=冷启动尚未进过前台")
@@ -162,6 +168,15 @@ class HyperVideoApplication : Application(), DefaultLifecycleObserver {
     }
 
     fun isAppForeground(): Boolean = processInForeground
+
+    /**
+     * 告诉「热启动判定」下一次退后台不是用户真的离开（例如去系统设置页开通知权限），
+     * 避免用户从设置返回时被当成回前台而重走开屏（对齐 EfileScan ignoreNextBackgroundReturn）。
+     */
+    fun ignoreNextBackgroundReturn(reason: String) {
+        ignoreNextBackgroundReturn = true
+        Log.d(TAG, "启动广告判定=忽略本次退后台 原因=" + reason)
+    }
 
     /**
      * 旧启动页已在离场时，延迟清栈拉起新的启动页。

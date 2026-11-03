@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 蓝湖「自定义通知权限请求」：卡片 361x246 @16dp 边距，圆角 24，内边距 24 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_app_dialog"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/notification_permission_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fontFamily="@font/inter_bold"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:minHeight="24dp"
+        android:text="@string/notification_permission_title"
+        android:textColor="@color/white"
+        android:textSize="18.5sp"
+        tools:text="Turn on notifications" />
+
+    <TextView
+        android:id="@+id/notification_permission_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:fontFamily="@font/inter_regular"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:minHeight="24dp"
+        android:text="@string/notification_permission_message"
+        android:textColor="@color/white_80"
+        android:textSize="15sp"
+        tools:text="Never miss new episodes or show updates" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/notification_permission_allow"
+        style="@style/PermissionActionButton"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="40dp"
+        android:fontFamily="@font/inter_semibold"
+        android:text="@string/notification_permission_allow"
+        android:textSize="15sp"
+        tools:text="Allow" />
+
+    <TextView
+        android:id="@+id/notification_permission_deny"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/inter_regular"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:minHeight="18dp"
+        android:text="@string/notification_permission_deny"
+        android:textColor="@color/player_text_secondary"
+        android:textSize="12sp"
+        tools:text="Deny" />
+</LinearLayout>

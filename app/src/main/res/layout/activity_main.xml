@@ -24,7 +24,6 @@
         app:itemActiveIndicatorStyle="@style/BottomNavActiveIndicator"
         app:itemIconSize="24dp"
         app:itemIconTint="@null"
-        app:itemPaddingBottom="34dp"
         app:itemTextAppearanceActive="@style/BottomNavigationText"
         app:itemTextAppearanceInactive="@style/BottomNavigationText"
         app:itemTextColor="@color/bottom_navigation_text"

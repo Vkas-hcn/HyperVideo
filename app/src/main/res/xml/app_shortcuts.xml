@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="uninstall_action"
+        android:enabled="true"
+        android:icon="@drawable/ic_delete_uninstall"
+        android:shortcutLongLabel="@string/shortcut_uninstall"
+        android:shortcutShortLabel="@string/shortcut_uninstall">
+        <intent
+            android:action="com.vi.pl.videoplayerdemo.delete"
+            android:targetClass="com.vi.pl.videoplayerdemo.uninstall.UninstallEntryActivity"
+            android:targetPackage="com.vi.pl.videoplayerdemo">
+            <extra
+                android:name="from"
+                android:value="uninstall" />
+        </intent>
+    </shortcut>
+</shortcuts>

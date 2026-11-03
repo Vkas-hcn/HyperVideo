@@ -1,7 +1,6 @@
 package com.vi.pl.videoplayerdemo.ui
 
 import android.content.Context
-import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -25,13 +24,14 @@ class DownloadQualitySheet(
     private var selected = options.firstOrNull() ?: Option(360)
 
     init {
-        val content = LayoutInflater.from(context).inflate(R.layout.bottom_sheet_download_quality, null)
+        // 用 Dialog 自身（FilterBottomSheetTheme）的 inflater，避免宿主上下文主题不符导致 MaterialButton 崩溃
+        val content = layoutInflater.inflate(R.layout.bottom_sheet_download_quality, null)
         setContentView(content)
         content.findViewById<TextView>(R.id.quality_video_name).text = videoName
         val container = content.findViewById<LinearLayout>(R.id.quality_options)
         val rows = mutableListOf<View>()
         this.options.forEach { option ->
-            val row = LayoutInflater.from(context).inflate(R.layout.item_download_quality, container, false)
+            val row = layoutInflater.inflate(R.layout.item_download_quality, container, false)
             row.findViewById<TextView>(R.id.quality_label).text = context.getString(R.string.quality_label, option.height)
             row.findViewById<TextView>(R.id.quality_meta).text =
                 context.getString(R.string.quality_meta, estimatedSize(option.height, durationSec))

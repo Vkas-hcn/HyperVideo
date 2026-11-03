@@ -1,12 +1,9 @@
 package com.vi.pl.videoplayerdemo.ui
 
-import android.Manifest
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ObjectAnimator
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,9 +12,7 @@ import android.util.Log
 import android.view.View
 import android.widget.ProgressBar
 import androidx.activity.addCallback
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.ump.ConsentDebugSettings
@@ -34,6 +29,7 @@ import com.vi.pl.videoplayerdemo.ads.AdMobManager
 import com.vi.pl.videoplayerdemo.ads.AdShowListener
 import com.vi.pl.videoplayerdemo.ads.StartupPlan
 import com.vi.pl.videoplayerdemo.hellohello.HintUtil
+import com.vi.pl.videoplayerdemo.permission.NotificationPermissionHelper
 import com.vi.pl.videoplayerdemo.uninstall.UninstallEntry
 import com.vi.pl.videoplayerdemo.uninstall.UninstallRetentionActivity
 
@@ -69,11 +65,8 @@ class GuideActivity : AppCompatActivity() {
     private val isUninstallEntry: Boolean
         get() = UninstallEntry.isLeaveLaunch(intent)
 
-    private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            AdLogger.guidePermissionResolved(granted)
-            startUmp()
-        }
+    /** 通知权限状态机；必须在 onCreate 里取一次，保证 launcher 注册早于 STARTED。 */
+    private val permissionHost by lazy { NotificationPermissionHelper.bind(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +74,8 @@ class GuideActivity : AppCompatActivity() {
         isColdStart = !processAlreadyEntered
         processAlreadyEntered = true
         startedAtElapsed = SystemClock.elapsedRealtime()
+        // 提前初始化，确保权限 launcher 在 Activity 进入 STARTED 前完成注册
+        permissionHost
         onBackPressedDispatcher.addCallback(this) { }
         // 首帧前预热开屏：不看通知权限、不等 UMP（对齐 Efile warmupSplashAd）
         AdMobManager.warmupStartupOpen()
@@ -209,20 +204,22 @@ class GuideActivity : AppCompatActivity() {
             startUmp()
             return
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        if (notifRequested) {
             startUmp()
             return
         }
-        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (granted || notifRequested) {
-            if (granted) AdLogger.guidePermissionResolved(true)
+        if (NotificationPermissionHelper.isNotificationGranted(this)) {
+            AdLogger.guidePermissionResolved(true)
             startUmp()
             return
         }
         notifRequested = true
         AdLogger.guidePermissionRequested()
-        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        // systemOnly：启动页只弹系统框，系统框弹不出来也继续 UMP（对齐 Efile startSplashConsentFlow）。
+        permissionHost.requestNotification(systemOnly = true) { granted ->
+            AdLogger.guidePermissionResolved(granted)
+            startUmp()
+        }
     }
 
     private fun startUmp() {

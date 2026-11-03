@@ -55,6 +55,9 @@ enum class VideoPlatform(
 
     companion object {
         fun fromUrl(raw: String): VideoPlatform? = entries.firstOrNull { it.matches(raw) }
+
+        /** 已封禁平台（YouTube）：本地解析到就提示链接非法，不打开、不下载。 */
+        fun isBannedUrl(raw: String): Boolean = fromUrl(raw) == YOUTUBE
     }
 }
 

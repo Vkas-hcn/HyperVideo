@@ -41,6 +41,10 @@
     <string name="permission_title">Try playing your video!</string>
     <string name="permission_message">To play your video, please allow us access to your media videos. We fully respect your privacy.</string>
     <string name="grant_access">Grant Access</string>
+    <string name="notification_permission_title">Turn on notifications</string>
+    <string name="notification_permission_message">Never miss new episodes or show updates</string>
+    <string name="notification_permission_allow">Allow</string>
+    <string name="notification_permission_deny">Deny</string>
     <string name="go_to_settings">Go To Settings</string>
     <string name="settings_step_one">Go to Settings</string>
     <string name="settings_step_two">Tap Permissions</string>
@@ -90,6 +94,7 @@
     <string name="platform_facebook">Facebook</string>
     <string name="search_link_invalid">Please enter a valid video URL</string>
     <string name="search_link_unsupported">This video platform link is not supported</string>
+    <string name="search_link_banned">This video link is invalid</string>
     <string name="search_download_started">Download started</string>
     <string name="search_download_queued">Link saved. Download module will process it</string>
     <string name="browser_invalid_url">Please enter a valid web address</string>

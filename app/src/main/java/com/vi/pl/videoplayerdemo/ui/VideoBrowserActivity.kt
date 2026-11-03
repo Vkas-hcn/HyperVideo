@@ -30,6 +30,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.vi.pl.videoplayerdemo.R
+import com.vi.pl.videoplayerdemo.ads.AdLoadListener
+import com.vi.pl.videoplayerdemo.ads.AdMobManager
+import com.vi.pl.videoplayerdemo.ads.AdShowListener
 import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
 import com.vi.pl.videoplayerdemo.search.VideoPlatform
 import com.vi.pl.videoplayerdemo.search.VideoUrlDetector
@@ -47,6 +50,10 @@ class VideoBrowserActivity : AppCompatActivity() {
     private var pageLoaded = false
     private var pageFailed = false
     private var pendingDownload: PendingDownload? = null
+    // 下载插屏广告流程（并行模式：不阻断下载）
+    private var downloadAdInFlight = false
+    private var downloadAdSettled = false
+    private var downloadAdTimeout: Runnable? = null
     private val timeout: Runnable = Runnable {
         if (!pageLoaded) showError()
     }
@@ -72,7 +79,10 @@ class VideoBrowserActivity : AppCompatActivity() {
         findViewById<View>(R.id.video_browser_refresh).setOnClickListener {
             load(address.text.toString())
         }
-        findViewById<View>(R.id.video_browser_download).setOnClickListener { downloadCurrentVideo() }
+        findViewById<View>(R.id.video_browser_download).setOnClickListener {
+            downloadCurrentVideo()
+            maybeShowDownloadAd()
+        }
         findViewById<View>(R.id.video_browser_help).setOnClickListener { }
         address.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_GO || actionId == EditorInfo.IME_ACTION_DONE) {
@@ -103,8 +113,15 @@ class VideoBrowserActivity : AppCompatActivity() {
     }
 
     private fun browserClient() = object : WebViewClient() {
-        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-            request.url.scheme !in setOf("http", "https")
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val url = request.url.toString()
+            if (VideoPlatform.isBannedUrl(url)) {
+                // 页面里点出去也不放行封禁平台
+                Toast.makeText(this@VideoBrowserActivity, R.string.search_link_banned, Toast.LENGTH_SHORT).show()
+                return true
+            }
+            return request.url.scheme !in setOf("http", "https")
+        }
 
         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
             pageLoaded = false
@@ -149,6 +166,12 @@ class VideoBrowserActivity : AppCompatActivity() {
 
     private fun load(rawUrl: String) {
         val url = rawUrl.trim().let { if (it.contains("://")) it else "https://$it" }
+        if (VideoPlatform.isBannedUrl(url)) {
+            Toast.makeText(this, R.string.search_link_banned, Toast.LENGTH_SHORT).show()
+            // 直接带进来（Intent/地址栏）时没有可停留的页面，直接退出
+            if (!pageLoaded) finish()
+            return
+        }
         if (!VideoUrlDetector.isDownloadableHttpUrl(url)) {
             Toast.makeText(this, R.string.browser_invalid_url, Toast.LENGTH_SHORT).show()
             return
@@ -181,6 +204,65 @@ class VideoBrowserActivity : AppCompatActivity() {
         recentVideoUrls.remove(stored)
         if (recentVideoUrls.size == 3) recentVideoUrls.removeFirst()
         recentVideoUrls.addLast(stored)
+    }
+
+    /**
+     * 下载插屏广告（inters_guide_1/2）：并行模式，与下载流程互不等待。
+     * 有缓存立即展示（guide_1 优先）；无缓存并行加载两路，先成功者展示，10s 超时放弃。
+     */
+    private fun maybeShowDownloadAd() {
+        if (downloadAdInFlight) return
+        downloadAdInFlight = true
+        downloadAdSettled = false
+        val guide1 = AdMobManager.InterstitialPlacement.GUIDE_1
+        val guide2 = AdMobManager.InterstitialPlacement.GUIDE_2
+        if (AdMobManager.isInterstitialLoaded(guide1) || AdMobManager.isInterstitialLoaded(guide2)) {
+            settleDownloadAd(if (AdMobManager.isInterstitialLoaded(guide1)) guide1 else guide2)
+            return
+        }
+        downloadAdTimeout = Runnable {
+            downloadAdTimeout = null
+            if (!downloadAdSettled) {
+                downloadAdInFlight = false
+                Log.d(TAG, "download interstitial gave up after timeout")
+            }
+        }.also { handler.postDelayed(it, DOWNLOAD_AD_WAIT_MS) }
+        // 两路并行加载：先成功者展示（settleDownloadAd 内门闩保证只展示一次）
+        AdMobManager.loadInterstitial(this, guide1, object : AdLoadListener {
+            override fun onAdLoaded() = settleDownloadAd(guide1)
+            override fun onAdFailedToLoad(error: String) {
+                Log.d(TAG, "download interstitial guide1 load failed: $error")
+            }
+        })
+        AdMobManager.loadInterstitial(this, guide2, object : AdLoadListener {
+            override fun onAdLoaded() = settleDownloadAd(guide2)
+            override fun onAdFailedToLoad(error: String) {
+                Log.d(TAG, "download interstitial guide2 load failed: $error")
+            }
+        })
+    }
+
+    private fun settleDownloadAd(placement: AdMobManager.InterstitialPlacement) {
+        if (downloadAdSettled || isFinishing || isDestroyed) return
+        downloadAdSettled = true
+        downloadAdTimeout?.let(handler::removeCallbacks)
+        downloadAdTimeout = null
+        val shown = AdMobManager.showInterstitial(this, placement, object : AdShowListener {
+            override fun onAdShowed() = Unit
+            override fun onAdShowFailed(error: String) {
+                downloadAdInFlight = false
+            }
+
+            override fun onAdClosed() {
+                downloadAdInFlight = false
+            }
+
+            override fun onAdClicked() = Unit
+        })
+        if (!shown) {
+            // 频控/最小间隔/后台等拦截：无广告直接结束，下载不受影响
+            downloadAdInFlight = false
+        }
     }
 
     private fun downloadCurrentVideo() {
@@ -444,6 +526,8 @@ class VideoBrowserActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(timeout)
+        downloadAdTimeout?.let(handler::removeCallbacks)
+        downloadAdTimeout = null
         webView.destroy()
         super.onDestroy()
     }
@@ -452,6 +536,7 @@ class VideoBrowserActivity : AppCompatActivity() {
         private const val TAG = "VideoBrowser"
         private const val EXTRA_URL = "url"
         private const val PAGE_TIMEOUT_MS = 20_000L
+        private const val DOWNLOAD_AD_WAIT_MS = 10_000L
         private const val WRITE_STORAGE_REQUEST = 701
         private data class PendingDownload(
             val url: String,

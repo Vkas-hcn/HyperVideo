@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import android.util.Log
+import com.google.android.gms.ads.AdActivity
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.download.VideoDownloadRepository
 import com.vi.pl.videoplayerdemo.search.VideoUrlDetector
@@ -264,6 +265,8 @@ object DownloadQualityCoordinator : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityResumed(activity: Activity) {
+        // 广告全屏 Activity 不是宿主：解析完成恰好赶上广告展示时，不能用它弹窗（无 Material 主题）
+        if (activity is AdActivity) return
         currentActivity = activity
         pendingMessage?.let { message ->
             pendingMessage = null
@@ -273,6 +276,7 @@ object DownloadQualityCoordinator : Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityPaused(activity: Activity) {
+        if (activity is AdActivity) return
         if (currentActivity === activity) currentActivity = null
         if (shownFor === activity) {
             retainingPending = true
