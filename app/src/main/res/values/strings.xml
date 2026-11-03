@@ -197,4 +197,6 @@
     <string name="download_failed">Download failed</string>
     <string name="ad">AD</string>
     <string name="notification_channel_news">News Updates</string>
+    <string name="notification_content_icon_desc">Notification content</string>
+    <string name="notification_play_desc">Play</string>
 </resources>

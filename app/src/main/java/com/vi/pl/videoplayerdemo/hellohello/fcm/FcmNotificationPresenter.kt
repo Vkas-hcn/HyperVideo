@@ -14,6 +14,9 @@ import androidx.core.content.ContextCompat
 import com.vi.pl.videoplayerdemo.HyperVideoApplication
 import com.vi.pl.videoplayerdemo.R
 import com.vi.pl.videoplayerdemo.hellohello.NewsLogger
+import com.vi.pl.videoplayerdemo.hellohello.NewsNotificationViewBinder
+import com.vi.pl.videoplayerdemo.hellohello.NotificationContent
+import com.vi.pl.videoplayerdemo.hellohello.NotificationIcon
 import com.vi.pl.videoplayerdemo.ui.GuideActivity
 
 internal object FcmNotificationPresenter {
@@ -43,12 +46,27 @@ internal object FcmNotificationPresenter {
             clickIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val icon = if (content.type.contains("news", ignoreCase = true)) {
+            NotificationIcon.BELL
+        } else {
+            NotificationIcon.VIDEO
+        }
+        val viewContent = NotificationContent(
+            id = content.id,
+            title = content.title,
+            summary = content.body,
+            action = content.cta.ifBlank { "Open" },
+            url = content.link,
+            icon = icon,
+        )
+        val collapsed = NewsNotificationViewBinder.collapsed(context, viewContent, pendingIntent)
+        val expanded = NewsNotificationViewBinder.expanded(context, viewContent, pendingIntent)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_small)
+            .setColor(ContextCompat.getColor(context, R.color.brand_red))
             .setContentTitle(content.title)
             .setContentText(content.body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(content.body))
-            .setShowWhen(true)
+            .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -56,6 +74,9 @@ internal object FcmNotificationPresenter {
             .setOnlyAlertOnce(silent)
             .setSilent(silent)
             .setContentIntent(pendingIntent)
+            .setCustomContentView(collapsed)
+            .setCustomBigContentView(expanded)
+            .setCustomHeadsUpContentView(collapsed)
             .build()
 
         return runCatching {

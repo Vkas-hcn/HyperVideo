@@ -398,6 +398,7 @@ object HintUtil {
         val contentIntent = createIntent(content.url, showType, notificationId)
         return NotificationCompat.Builder(coIntance(), channelId)
             .setSmallIcon(R.drawable.ic_notification_small)
+            .setColor(ContextCompat.getColor(coIntance(), R.color.brand_red))
             .setContentTitle(content.title)
             .setContentText(content.summary)
             .setAutoCancel(true)
@@ -413,10 +414,10 @@ object HintUtil {
                     setDeleteIntent(createDismissIntent(showType, notificationId))
                 }
             }
+            .setShowWhen(false)
             .setCustomContentView(createCollapsedNewsView(content, contentIntent))
             .setCustomBigContentView(createLargeNewsView(content, contentIntent))
             .setCustomHeadsUpContentView(createCollapsedNewsView(content, contentIntent))
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .build()
     }
 
@@ -461,48 +462,12 @@ object HintUtil {
     private fun createCollapsedNewsView(
         content: NotificationContent,
         contentIntent: PendingIntent,
-    ): RemoteViews =
-        RemoteViews(
-            coIntance().packageName,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                R.layout.notification_collapsed
-            } else {
-                R.layout.notification_collapsed_legacy
-            },
-        ).also {
-            bindCollapsedNewsView(it, content, contentIntent)
-        }
+    ): RemoteViews = NewsNotificationViewBinder.collapsed(coIntance(), content, contentIntent)
 
     private fun createLargeNewsView(
         content: NotificationContent,
         contentIntent: PendingIntent,
-    ): RemoteViews =
-        RemoteViews(coIntance().packageName, R.layout.notification_expanded).also {
-            bindExpandedNewsView(it, content, contentIntent)
-        }
-
-    private fun bindCollapsedNewsView(
-        view: RemoteViews,
-        content: NotificationContent,
-        contentIntent: PendingIntent,
-    ) {
-        view.setTextViewText(R.id.news_title, content.title)
-        view.setTextViewText(R.id.news_action, content.action)
-        view.setOnClickPendingIntent(R.id.root, contentIntent)
-        view.setOnClickPendingIntent(R.id.news_action, contentIntent)
-    }
-
-    private fun bindExpandedNewsView(
-        view: RemoteViews,
-        content: NotificationContent,
-        contentIntent: PendingIntent,
-    ) {
-        view.setTextViewText(R.id.news_title, content.title)
-        view.setTextViewText(R.id.news_caption, content.summary)
-        view.setTextViewText(R.id.news_action, content.action)
-        view.setOnClickPendingIntent(R.id.root, contentIntent)
-        view.setOnClickPendingIntent(R.id.news_action, contentIntent)
-    }
+    ): RemoteViews = NewsNotificationViewBinder.expanded(coIntance(), content, contentIntent)
 
     /** 点击统一走启动页热启动（清栈 + 回主页），URL 非空时落地内置浏览器打开该页面。 */
     private fun createIntent(url: String, showType: Int, notificationId: Int): PendingIntent {

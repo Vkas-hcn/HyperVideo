@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.core.content.edit
 
 /**
- * 通知内容源：本地静态文案池（4 组），按顺序轮换，避免连续两条相同。
+ * 通知内容源：本地静态文案池（3 组），按顺序轮换，避免连续两条相同。
  * 将来接回下发/推荐数据源时只替换本文件，调用方不变。
  */
 object NotificationContentRepository {
@@ -19,6 +19,7 @@ object NotificationContentRepository {
             action = "Browse library",
             // 示例：填入任意 URL，点击通知即在内置浏览器打开该页面；留空则默认进首页
             url = "",
+            icon = NotificationIcon.VIDEO,
         ),
         NotificationContent(
             id = "copy_2",
@@ -26,6 +27,7 @@ object NotificationContentRepository {
             summary = "Fresh files are waiting in your library. Open up and start watching.",
             action = "Open library",
             url = "",
+            icon = NotificationIcon.BELL,
         ),
         NotificationContent(
             id = "copy_3",
@@ -33,6 +35,7 @@ object NotificationContentRepository {
             summary = "New clips showed up. Pick one and press play.",
             action = "Check it out",
             url = "",
+            icon = NotificationIcon.VIDEO,
         ),
     )
 
