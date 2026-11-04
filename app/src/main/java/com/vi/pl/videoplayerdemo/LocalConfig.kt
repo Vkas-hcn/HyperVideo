@@ -54,14 +54,14 @@ object LocalConfig {
   },
   "ad_config": {
     "ad_unit_ids": {
-      "open_back": "ca-app-pub-3940256099942544/9257395921",
+      "open_back": "ca-app-pub-1725671068291893/2356051586",
       "bar_banner": "",
-      "home_native": "ca-app-pub-3940256099942544/2247696110",
+      "home_native": "ca-app-pub-1725671068291893/7592371289",
       "inters_back": "",
       "inters_home": "",
       "connect_native": "",
-      "inters_guide_1": "ca-app-pub-3940256099942544/1033173712",
-      "inters_guide_2": "ca-app-pub-3940256099942544/1033173712",
+      "inters_guide_1": "ca-app-pub-1725671068291893/3844697964",
+      "inters_guide_2": "ca-app-pub-1725671068291893/3844697964",
       "search_inters_back": ""
     },
     "ad_debug_settings": {
